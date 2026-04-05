@@ -1,0 +1,27 @@
+{
+    "id": "FC0FB5C8",
+    "path": "~/Documents/Data Science projects/streaming-subscription-churn-model/r/analysis.qmd",
+    "project_path": "analysis.qmd",
+    "type": "quarto_markdown",
+    "hash": "71133403",
+    "contents": "",
+    "dirty": false,
+    "created": 1771497704060.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "245,0",
+        "scrollLine": "231",
+        "last_setup_crc32": ""
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1771522087,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1771522088001,
+    "read_only": false,
+    "read_only_alternatives": []
+}
