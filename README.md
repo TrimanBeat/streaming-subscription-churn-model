@@ -69,7 +69,7 @@ El EDA también incluyó una visualización geográfica mediante un **choropleth
 
 ---
 
-### Feature engineering
+### Creación de variables
 
 Para mejorar la interpretabilidad y el rendimiento del modelo, se crearon nuevas variables como:
 
