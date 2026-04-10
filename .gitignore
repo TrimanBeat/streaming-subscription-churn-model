@@ -2,7 +2,7 @@
 __pycache__/
 .ipynb_checkpoints/
 .DS_Store
-
-data/processed/
-data/exports/
-models/
+.env
+.streamlit/secrets.toml
+models/rf_model.joblib
+models/rf_model_large.joblib

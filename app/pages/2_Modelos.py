@@ -153,7 +153,11 @@ st.dataframe(top_risk, use_container_width=True)
 # Hueco para interpretación LLM
 # =========================
 
-def build_feature_importance_prompt(rf_feature_importance: pd.DataFrame, top_n: int = 12) -> str:
+def build_feature_importance_prompt(
+    rf_feature_importance: pd.DataFrame,
+    model_metrics: pd.DataFrame,
+    top_n: int = 12
+) -> str:
     feature_col = "feature_clean" if "feature_clean" in rf_feature_importance.columns else "feature"
     top_df = rf_feature_importance[[feature_col, "importance"]].head(top_n).copy()
 
@@ -163,15 +167,32 @@ def build_feature_importance_prompt(rf_feature_importance: pd.DataFrame, top_n: 
 
     features_text = "\n".join(lines)
 
+    rf_row = model_metrics[
+        model_metrics["model"].str.contains("Random", case=False, na=False)
+    ].iloc[0]
+
+    metrics_text = f"""
+Random Forest performance:
+- Accuracy: {rf_row['accuracy']:.3f}
+- Precision: {rf_row['precision']:.3f}
+- Recall: {rf_row['recall']:.3f}
+- F1-score: {rf_row['f1']:.3f}
+- ROC AUC: {rf_row['roc_auc']:.3f}
+"""
+
     prompt = f"""
 You are helping explain a churn prediction dashboard to a university audience.
 
-Below is the top feature importance output from a Random Forest model:
+Below is the performance of the selected model and the top feature importance output from a Random Forest model.
 
+{metrics_text}
+
+Top feature importance:
 {features_text}
 
 Write a short interpretation in Spanish:
-- 5 to 7 lines maximum
+- 6 to 8 lines maximum
+- Briefly mention that the model shows strong predictive performance
 - Explain the main patterns in business language
 - Group the findings into themes if possible, such as engagement, friction, and subscription type
 - Mention that feature importance is predictive, not causal
@@ -216,7 +237,11 @@ with col_b:
     st.write("Usa el modelo para resumir los principales drivers del churn en lenguaje natural.")
 
 if generate_clicked:
-    prompt = build_feature_importance_prompt(rf_feature_importance, top_n=12)
+    prompt = build_feature_importance_prompt(
+    rf_feature_importance=rf_feature_importance,
+    model_metrics=model_metrics,
+    top_n=12
+)
     with st.spinner("Generando resumen..."):
         st.session_state["llm_summary"] = generate_gemini_summary(prompt)
 
