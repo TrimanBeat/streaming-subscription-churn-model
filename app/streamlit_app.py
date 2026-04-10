@@ -26,7 +26,7 @@ if "model" in model_metrics.columns and "roc_auc" in model_metrics.columns:
     best_model_name = best_row["model"]
     best_model_auc = best_row["roc_auc"]
 
-st.title("📉 Streaming Subscription Churn Dashboard")
+st.title("📉 Dashboard de churn de subscripción a la plataforma")
 st.markdown("Dashboard interactivo para explorar churn, comparar modelos y simular nuevos clientes.")
 
 col1, col2, col3, col4 = st.columns(4)
