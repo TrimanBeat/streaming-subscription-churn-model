@@ -8,9 +8,57 @@ Explora los principales patrones del churn mediante filtros interactivos,
 segmentación visual y una vista geográfica de EE. UU.
 """)
 
-# =========================
+# =========================================================
+# Diccionarios geográficos
+# =========================================================
+STATE_ABBREV = {
+    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
+    "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
+    "Florida": "FL", "Georgia": "GA", "Hawaii": "HI", "Idaho": "ID",
+    "Illinois": "IL", "Indiana": "IN", "Iowa": "IA", "Kansas": "KS",
+    "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+    "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS",
+    "Missouri": "MO", "Montana": "MT", "Nebraska": "NE", "Nevada": "NV",
+    "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM", "New York": "NY",
+    "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK",
+    "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+    "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT",
+    "Vermont": "VT", "Virginia": "VA", "Washington": "WA", "West Virginia": "WV",
+    "Wisconsin": "WI", "Wyoming": "WY"
+}
+
+REGION_MAP = {
+    "Connecticut": "Northeast", "Maine": "Northeast", "Massachusetts": "Northeast",
+    "New Hampshire": "Northeast", "Rhode Island": "Northeast", "Vermont": "Northeast",
+    "New Jersey": "Northeast", "New York": "Northeast", "Pennsylvania": "Northeast",
+
+    "Illinois": "Midwest", "Indiana": "Midwest", "Michigan": "Midwest",
+    "Ohio": "Midwest", "Wisconsin": "Midwest", "Iowa": "Midwest",
+    "Kansas": "Midwest", "Minnesota": "Midwest", "Missouri": "Midwest",
+    "Nebraska": "Midwest", "North Dakota": "Midwest", "South Dakota": "Midwest",
+
+    "Delaware": "South", "Florida": "South", "Georgia": "South",
+    "Maryland": "South", "North Carolina": "South", "South Carolina": "South",
+    "Virginia": "South", "West Virginia": "South", "Alabama": "South",
+    "Kentucky": "South", "Mississippi": "South", "Tennessee": "South",
+    "Arkansas": "South", "Louisiana": "South", "Oklahoma": "South", "Texas": "South",
+
+    "Arizona": "West", "Colorado": "West", "Idaho": "West", "Montana": "West",
+    "Nevada": "West", "New Mexico": "West", "Utah": "West", "Wyoming": "West",
+    "Alaska": "West", "California": "West", "Hawaii": "West", "Oregon": "West",
+    "Washington": "West"
+}
+
+REGION_COORDS = {
+    "West": {"lat": 39, "lon": -118},
+    "Midwest": {"lat": 41, "lon": -93},
+    "South": {"lat": 33, "lon": -86},
+    "Northeast": {"lat": 42, "lon": -74}
+}
+
+# =========================================================
 # Carga de datos
-# =========================
+# =========================================================
 @st.cache_data
 def load_data():
     segment_summary = pd.read_csv("data/exports/segment_summary.csv")
@@ -20,20 +68,52 @@ def load_data():
 segment_summary, train_model_ready = load_data()
 df = train_model_ready.copy()
 
-# =========================
-# Preparación
-# =========================
+# =========================================================
+# Preparación robusta para geografía y labels
+# =========================================================
+if "location" in df.columns:
+    df["location"] = (
+        df["location"]
+        .astype(str)
+        .str.strip()
+        .str.title()
+        .replace({"Nebrasksa": "Nebraska"})
+    )
+
+if "state_code" not in df.columns and "location" in df.columns:
+    df["state_code"] = df["location"].map(STATE_ABBREV)
+
+if "region" not in df.columns and "location" in df.columns:
+    df["region"] = df["location"].map(REGION_MAP)
+
 if "churned" in df.columns:
     df["churn_label"] = df["churned"].map({0: "No Churn", 1: "Churn"})
 
+# =========================================================
+# Variables numéricas disponibles
+# =========================================================
 numeric_candidates = [
     col for col in df.select_dtypes(include=["int64", "float64", "int32", "float32"]).columns
     if col != "churned"
 ]
 
-# =========================
-# Sidebar
-# =========================
+preferred_order = [
+    "weekly_hours",
+    "song_skip_rate",
+    "age",
+    "num_subscription_pauses",
+    "average_session_length",
+    "weekly_unique_songs",
+    "weekly_songs_played",
+    "notifications_clicked",
+]
+numeric_candidates = [c for c in preferred_order if c in numeric_candidates] + [
+    c for c in numeric_candidates if c not in preferred_order
+]
+
+# =========================================================
+# Sidebar filtros
+# =========================================================
 st.sidebar.header("Filtros")
 
 view_mode = st.sidebar.selectbox(
@@ -58,14 +138,19 @@ numeric_var = st.sidebar.selectbox(
     numeric_candidates if numeric_candidates else ["age"]
 )
 
-map_mode = st.sidebar.selectbox(
-    "Mapa geográfico",
-    ["Distribución de clientes", "Tasa de churn por estado"]
+geo_mode = st.sidebar.selectbox(
+    "Visualización geográfica",
+    [
+        "Clientes por estado",
+        "Churn por estado",
+        "Clientes por región",
+        "Churn por región"
+    ]
 )
 
-# =========================
-# Filtros
-# =========================
+# =========================================================
+# Aplicar filtros
+# =========================================================
 filtered_df = df.copy()
 
 if view_mode == "Solo Churn":
@@ -79,13 +164,134 @@ if "subscription_type" in filtered_df.columns and subscription_filter:
 if "customer_service_inquiries" in filtered_df.columns and inquiries_filter:
     filtered_df = filtered_df[filtered_df["customer_service_inquiries"].isin(inquiries_filter)]
 
-# =========================
+if len(filtered_df) == 0:
+    st.warning("No hay datos para los filtros seleccionados.")
+    st.stop()
+
+# =========================================================
+# Funciones de gráficos
+# =========================================================
+def plot_us_state_choropleth(data: pd.DataFrame, mode: str):
+    if "state_code" not in data.columns or "location" not in data.columns:
+        return None
+
+    state_df = data.dropna(subset=["state_code"]).copy()
+    if len(state_df) == 0:
+        return None
+
+    if mode == "Clientes por estado":
+        plot_df = (
+            state_df.groupby(["location", "state_code"])
+            .size()
+            .reset_index(name="value")
+        )
+        title = "Distribución de clientes por estado"
+        color_scale = "Burg"
+        hover_fmt = {"state_code": False, "value": True}
+        colorbar_title = "Clientes"
+
+    else:
+        plot_df = (
+            state_df.groupby(["location", "state_code"])["churned"]
+            .mean()
+            .reset_index(name="value")
+        )
+        title = "Tasa de churn por estado"
+        color_scale = "Reds"
+        hover_fmt = {"state_code": False, "value": ":.2%"}
+        colorbar_title = "Churn rate"
+
+    fig = px.choropleth(
+        plot_df,
+        locations="state_code",
+        locationmode="USA-states",
+        color="value",
+        scope="usa",
+        color_continuous_scale=color_scale,
+        hover_name="location",
+        hover_data=hover_fmt,
+        title=title
+    )
+
+    fig.update_layout(
+        title_x=0.5,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        margin=dict(l=20, r=20, t=60, b=20),
+        coloraxis_colorbar_title=colorbar_title
+    )
+
+    fig.update_geos(
+        bgcolor="rgba(0,0,0,0)",
+        showland=True,
+        landcolor="rgb(245,245,245)"
+    )
+
+    return fig, plot_df
+
+
+def plot_region_bubble_map(data: pd.DataFrame, mode: str):
+    if "region" not in data.columns:
+        return None
+
+    region_df = data.dropna(subset=["region"]).copy()
+    if len(region_df) == 0:
+        return None
+
+    if mode == "Clientes por región":
+        plot_df = (
+            region_df.groupby("region")
+            .size()
+            .reset_index(name="value")
+        )
+        title = "Distribución de clientes por región"
+        color_scale = "Burg"
+    else:
+        plot_df = (
+            region_df.groupby("region")["churned"]
+            .mean()
+            .reset_index(name="value")
+        )
+        title = "Tasa de churn por región"
+        color_scale = "Reds"
+
+    plot_df["lat"] = plot_df["region"].map(lambda x: REGION_COORDS.get(x, {}).get("lat"))
+    plot_df["lon"] = plot_df["region"].map(lambda x: REGION_COORDS.get(x, {}).get("lon"))
+
+    fig = px.scatter_geo(
+        plot_df,
+        lat="lat",
+        lon="lon",
+        size="value",
+        color="value",
+        hover_name="region",
+        scope="usa",
+        color_continuous_scale=color_scale,
+        title=title
+    )
+
+    fig.update_layout(
+        title_x=0.5,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        margin=dict(l=20, r=20, t=60, b=20)
+    )
+
+    fig.update_geos(
+        bgcolor="rgba(0,0,0,0)",
+        showland=True,
+        landcolor="rgb(245,245,245)"
+    )
+
+    return fig, plot_df
+
+# =========================================================
 # KPIs
-# =========================
+# =========================================================
 st.subheader("Resumen")
 
 n_customers = len(filtered_df)
-global_churn_rate = filtered_df["churned"].mean() if len(filtered_df) > 0 else 0
+global_churn_rate = filtered_df["churned"].mean()
 
 col1, col2, col3, col4 = st.columns(4)
 
@@ -96,32 +302,114 @@ with col2:
     st.metric("Tasa de churn", f"{global_churn_rate:.2%}")
 
 with col3:
-    if "weekly_hours" in filtered_df.columns and len(filtered_df) > 0:
+    if "weekly_hours" in filtered_df.columns:
         st.metric("Weekly hours medias", f"{filtered_df['weekly_hours'].mean():.1f}")
     else:
         st.metric("Weekly hours medias", "N/A")
 
 with col4:
-    if "song_skip_rate" in filtered_df.columns and len(filtered_df) > 0:
+    if "song_skip_rate" in filtered_df.columns:
         st.metric("Skip rate medio", f"{filtered_df['song_skip_rate'].mean():.2f}")
     else:
         st.metric("Skip rate medio", "N/A")
 
-if len(filtered_df) == 0:
-    st.warning("No hay datos para los filtros seleccionados.")
-    st.stop()
+# =========================================================
+# Tabs principales
+# =========================================================
+tab1, tab2, tab3, tab4 = st.tabs(["Resumen", "Segmentos", "Geografía", "Distribuciones"])
 
-# =========================
-# Tabs
-# =========================
-tab1, tab2, tab3 = st.tabs(["Segmentos", "Geografía", "Distribuciones"])
-
-# ---------------------------------
-# TAB 1: Segmentos
-# ---------------------------------
+# ---------------------------------------------------------
+# TAB 1: Resumen
+# ---------------------------------------------------------
 with tab1:
-    st.subheader("Segmentación de churn")
+    top_left, top_right = st.columns([1.1, 1])
 
+    with top_left:
+        if "subscription_type" in filtered_df.columns:
+            churn_by_plan = (
+                filtered_df.groupby("subscription_type")["churned"]
+                .mean()
+                .reset_index(name="churn_rate")
+                .sort_values("churn_rate", ascending=False)
+            )
+
+            fig_plan = px.bar(
+                churn_by_plan,
+                x="subscription_type",
+                y="churn_rate",
+                title="Tasa de churn por tipo de suscripción",
+                text="churn_rate",
+                color="churn_rate",
+                color_continuous_scale="Reds"
+            )
+            fig_plan.update_traces(texttemplate="%{text:.2%}", textposition="outside")
+            fig_plan.update_layout(title_x=0.5, xaxis_title="Tipo de suscripción", yaxis_title="Tasa de churn")
+            st.plotly_chart(fig_plan, use_container_width=True)
+
+    with top_right:
+        if "customer_service_inquiries" in filtered_df.columns:
+            churn_by_inquiries = (
+                filtered_df.groupby("customer_service_inquiries")["churned"]
+                .mean()
+                .reset_index(name="churn_rate")
+                .sort_values("churn_rate", ascending=False)
+            )
+
+            fig_inquiries = px.bar(
+                churn_by_inquiries,
+                x="customer_service_inquiries",
+                y="churn_rate",
+                title="Tasa de churn por incidencias",
+                text="churn_rate",
+                color="churn_rate",
+                color_continuous_scale="Reds"
+            )
+            fig_inquiries.update_traces(texttemplate="%{text:.2%}", textposition="outside")
+            fig_inquiries.update_layout(title_x=0.5, xaxis_title="Incidencias", yaxis_title="Tasa de churn")
+            st.plotly_chart(fig_inquiries, use_container_width=True)
+
+    bottom_left, bottom_right = st.columns([1.1, 1])
+
+    with bottom_left:
+        if "weekly_hours" in df.columns:
+            compare_df = df.copy()
+            if subscription_filter:
+                compare_df = compare_df[compare_df["subscription_type"].isin(subscription_filter)]
+            if inquiries_filter:
+                compare_df = compare_df[compare_df["customer_service_inquiries"].isin(inquiries_filter)]
+
+            fig_weekly = px.box(
+                compare_df,
+                x="churn_label",
+                y="weekly_hours",
+                color="churn_label",
+                title="Weekly hours según churn vs no churn"
+            )
+            fig_weekly.update_layout(title_x=0.5, showlegend=False)
+            st.plotly_chart(fig_weekly, use_container_width=True)
+
+    with bottom_right:
+        if "song_skip_rate" in df.columns:
+            compare_df = df.copy()
+            if subscription_filter:
+                compare_df = compare_df[compare_df["subscription_type"].isin(subscription_filter)]
+            if inquiries_filter:
+                compare_df = compare_df[compare_df["customer_service_inquiries"].isin(inquiries_filter)]
+
+            fig_skip = px.box(
+                compare_df,
+                x="churn_label",
+                y="song_skip_rate",
+                color="churn_label",
+                title="Song skip rate según churn vs no churn"
+            )
+            fig_skip.update_layout(title_x=0.5, showlegend=False)
+            st.plotly_chart(fig_skip, use_container_width=True)
+
+# ---------------------------------------------------------
+# TAB 2: Segmentos
+# ---------------------------------------------------------
+with tab2:
     segment_filtered = (
         filtered_df
         .groupby(["subscription_type", "customer_service_inquiries"], as_index=False)
@@ -184,93 +472,35 @@ with tab1:
     with st.expander("Ver tabla de segmentos"):
         st.dataframe(nice_segments, use_container_width=True, hide_index=True)
 
-# ---------------------------------
-# TAB 2: Geografía
-# ---------------------------------
-with tab2:
-    st.subheader("Mapa geográfico de EE. UU.")
+# ---------------------------------------------------------
+# TAB 3: Geografía
+# ---------------------------------------------------------
+with tab3:
+    st.subheader("Vista geográfica")
 
-    if "state_code" not in filtered_df.columns or "location" not in filtered_df.columns:
-        st.warning("No se encontraron las columnas `location` y `state_code`.")
+    if geo_mode in ["Clientes por estado", "Churn por estado"]:
+        result = plot_us_state_choropleth(filtered_df, geo_mode)
     else:
-        if map_mode == "Distribución de clientes":
-            map_df = (
-                filtered_df
-                .groupby(["location", "state_code"])
-                .size()
-                .reset_index(name="n_customers")
-            )
+        result = plot_region_bubble_map(filtered_df, geo_mode)
 
-            fig_map = px.choropleth(
-                map_df,
-                locations="state_code",
-                locationmode="USA-states",
-                color="n_customers",
-                scope="usa",
-                color_continuous_scale="Burg",
-                hover_name="location",
-                hover_data={"state_code": False, "n_customers": True},
-                title="Distribución de clientes por estado"
-            )
-
-            fig_map.update_layout(
-                title_x=0.5,
-                paper_bgcolor="white",
-                plot_bgcolor="white",
-                margin=dict(l=20, r=20, t=60, b=20),
-                coloraxis_colorbar_title="Clientes"
-            )
-        else:
-            map_df = (
-                filtered_df
-                .groupby(["location", "state_code"])["churned"]
-                .mean()
-                .reset_index(name="churn_rate")
-            )
-
-            fig_map = px.choropleth(
-                map_df,
-                locations="state_code",
-                locationmode="USA-states",
-                color="churn_rate",
-                scope="usa",
-                color_continuous_scale="Reds",
-                hover_name="location",
-                hover_data={"state_code": False, "churn_rate": ":.2%"},
-                title="Tasa de churn por estado"
-            )
-
-            fig_map.update_layout(
-                title_x=0.5,
-                paper_bgcolor="white",
-                plot_bgcolor="white",
-                margin=dict(l=20, r=20, t=60, b=20),
-                coloraxis_colorbar_title="Churn rate"
-            )
-
-        fig_map.update_geos(
-            bgcolor="rgba(0,0,0,0)",
-            showland=True,
-            landcolor="rgb(245,245,245)"
-        )
-
-        st.plotly_chart(fig_map, use_container_width=True)
+    if result is None:
+        st.warning("No se pudo generar la visualización geográfica con los datos disponibles.")
+    else:
+        fig_geo, geo_df = result
+        st.plotly_chart(fig_geo, use_container_width=True)
 
         with st.expander("Ver tabla geográfica"):
-            st.dataframe(map_df.sort_values(map_df.columns[-1], ascending=False), use_container_width=True, hide_index=True)
+            st.dataframe(geo_df.sort_values("value", ascending=False), use_container_width=True, hide_index=True)
 
-# ---------------------------------
-# TAB 3: Distribuciones
-# ---------------------------------
-with tab3:
-    st.subheader("Distribución de variables numéricas")
-
+# ---------------------------------------------------------
+# TAB 4: Distribuciones
+# ---------------------------------------------------------
+with tab4:
     compare_df = df.copy()
 
-    if "subscription_type" in compare_df.columns and subscription_filter:
+    if subscription_filter:
         compare_df = compare_df[compare_df["subscription_type"].isin(subscription_filter)]
-
-    if "customer_service_inquiries" in compare_df.columns and inquiries_filter:
+    if inquiries_filter:
         compare_df = compare_df[compare_df["customer_service_inquiries"].isin(inquiries_filter)]
 
     dist_col1, dist_col2 = st.columns([1.1, 0.9])
@@ -301,19 +531,38 @@ with tab3:
         fig_hist.update_layout(title_x=0.5)
         st.plotly_chart(fig_hist, use_container_width=True)
 
+    if "age_group" in filtered_df.columns:
+        age_df = (
+            filtered_df.groupby("age_group", observed=False)["churned"]
+            .mean()
+            .reset_index(name="churn_rate")
+        )
+
+        fig_age = px.bar(
+            age_df,
+            x="age_group",
+            y="churn_rate",
+            title="Tasa de churn por grupo de edad",
+            text="churn_rate",
+            color="churn_rate",
+            color_continuous_scale="Reds"
+        )
+        fig_age.update_traces(texttemplate="%{text:.2%}", textposition="outside")
+        fig_age.update_layout(title_x=0.5, xaxis_title="Grupo de edad", yaxis_title="Tasa de churn")
+        st.plotly_chart(fig_age, use_container_width=True)
+
     stats_df = (
         compare_df.groupby("churn_label")[numeric_var]
         .agg(["count", "mean", "median", "std", "min", "max"])
         .reset_index()
     )
 
-    st.markdown("### Estadísticos rápidos")
     with st.expander("Ver tabla de estadísticos"):
         st.dataframe(stats_df, use_container_width=True, hide_index=True)
 
-# =========================
+# =========================================================
 # Vista previa del dataset
-# =========================
+# =========================================================
 st.subheader("Vista previa del dataset filtrado")
 with st.expander("Ver muestra del dataset"):
     st.dataframe(filtered_df.head(30), use_container_width=True, hide_index=True)
