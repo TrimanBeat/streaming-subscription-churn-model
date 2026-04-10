@@ -225,9 +225,9 @@ def build_model_summary_prompt(
     top_n: int = 12
 ) -> str:
     metrics_text = f"""
-Selected model: {selected_model}
+Modelo seleccionado: {selected_model}
 
-Performance:
+Rendimiento:
 - Accuracy: {current_metrics['accuracy']:.3f}
 - Precision: {current_metrics['precision']:.3f}
 - Recall: {current_metrics['recall']:.3f}
@@ -246,36 +246,54 @@ Performance:
         features_text = "\n".join(lines)
 
         prompt = f"""
-You are helping explain a churn prediction dashboard to a university audience.
+Eres un asistente que ayuda a explicar un dashboard de predicción de churn a una audiencia universitaria.
 
 {metrics_text}
 
-Top feature importance:
+Top variables más importantes:
 {features_text}
 
-Write a short interpretation in English:
-- 6 to 8 lines maximum
-- Briefly mention that the model shows strong predictive performance
-- Explain the main patterns in business language
-- Group the findings into themes if possible, such as engagement, friction, and subscription type
-- Mention that feature importance is predictive, not causal
-- Do not invent variables or relationships that are not present
-- Keep the tone clear, concise, and presentation-ready
+Escribe la respuesta en español y con este formato exacto en Markdown:
+
+### Resumen general
+2 o 3 frases breves sobre el rendimiento del modelo.
+
+### Variables clave
+- 3 o 4 viñetas explicando los factores más importantes
+- agrupa las ideas en bloques si es posible, como engagement, fricción y tipo de suscripción
+
+### Nota de interpretación
+1 viñeta breve aclarando que la importancia de variables es predictiva y no causal.
+
+Instrucciones:
+- No escribas la respuesta en un solo párrafo
+- Usa títulos y viñetas
+- Sé claro, breve y presentable
+- No inventes relaciones no presentes en la tabla
 """
     else:
         prompt = f"""
-You are helping explain a churn prediction dashboard to a university audience.
+Eres un asistente que ayuda a explicar un dashboard de predicción de churn a una audiencia universitaria.
 
 {metrics_text}
 
-Write a short interpretation in Spanish:
-- 5 to 7 lines maximum
-- Briefly explain what these metrics say about the selected model
-- Mention whether the model looks balanced across precision and recall
-- Keep the tone clear, concise, and presentation-ready
-- Do not mention feature importance if it is not provided
-"""
+Escribe la respuesta en español y con este formato exacto en Markdown:
 
+### Resumen general
+2 o 3 frases breves sobre el rendimiento del modelo.
+
+### Lectura de métricas
+- 2 o 3 viñetas comentando si el modelo parece equilibrado entre precision y recall
+- 1 viñeta breve sobre el ROC AUC
+
+### Nota final
+1 frase breve sobre si el modelo parece adecuado para una demo o despliegue ligero.
+
+Instrucciones:
+- No escribas la respuesta en un solo párrafo
+- Usa títulos y viñetas
+- Sé claro, breve y presentable
+"""
     return prompt
 
 def generate_gemini_summary(prompt: str) -> str:
@@ -335,6 +353,7 @@ if generate_clicked:
 
 if st.session_state[summary_key]:
     st.success("Resumen generado")
-    st.write(st.session_state[summary_key])
+    with st.container(border=True):
+        st.markdown(st.session_state[summary_key])
 else:
     st.info("Pulsa el botón para generar una interpretación automática.")
