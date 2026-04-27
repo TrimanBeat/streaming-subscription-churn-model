@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.title("📊 EDA y Segmentos")
+st.title("EDA y Segmentos")
 st.markdown("""
 Explora los principales patrones del churn mediante filtros interactivos,
 segmentación visual y una vista geográfica de EE. UU.

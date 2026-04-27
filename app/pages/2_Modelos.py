@@ -6,7 +6,7 @@ import plotly.express as px
 # =========================
 # Configuración de página
 # =========================
-st.title("🤖 Modelos Predictivos")
+st.title("Modelos Predictivos")
 st.markdown("""
 En esta sección se comparan los modelos entrenados y se pueden explorar
 sus métricas, matriz de confusión y ejemplos de predicción.
