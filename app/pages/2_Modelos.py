@@ -273,19 +273,41 @@ if "tree_model_in_situ" not in st.session_state:
     st.session_state["tree_importance_in_situ"] = None
     st.session_state["tree_feature_names_in_situ"] = None
 
-if train_clicked:
-    with st.spinner("Entrenando árbol de decisión..."):
-        tree_model_in_situ, tree_metrics_in_situ, tree_importance_in_situ, tree_feature_names_in_situ = train_decision_tree_in_situ(
-            train_model_ready,
-            target="churned",
-            max_depth=max_depth_in_situ,
-            min_samples_split=min_samples_split_in_situ
-        )
+import time
 
-        st.session_state["tree_model_in_situ"] = tree_model_in_situ
-        st.session_state["tree_metrics_in_situ"] = tree_metrics_in_situ
-        st.session_state["tree_importance_in_situ"] = tree_importance_in_situ
-        st.session_state["tree_feature_names_in_situ"] = tree_feature_names_in_situ
+if train_clicked:
+    progress_text = st.empty()
+    progress_bar = st.progress(0)
+
+    progress_text.write("Preparando datos...")
+    progress_bar.progress(20)
+    time.sleep(0.2)
+
+    progress_text.write("Entrenando árbol de decisión...")
+    progress_bar.progress(50)
+
+    tree_model_in_situ, tree_metrics_in_situ, tree_importance_in_situ, tree_feature_names_in_situ = train_decision_tree_in_situ(
+        train_model_ready,
+        target="churned",
+        max_depth=max_depth_in_situ,
+        min_samples_split=min_samples_split_in_situ
+    )
+
+    progress_text.write("Calculando métricas e importancias...")
+    progress_bar.progress(80)
+    time.sleep(0.2)
+
+    st.session_state["tree_model_in_situ"] = tree_model_in_situ
+    st.session_state["tree_metrics_in_situ"] = tree_metrics_in_situ
+    st.session_state["tree_importance_in_situ"] = tree_importance_in_situ
+    st.session_state["tree_feature_names_in_situ"] = tree_feature_names_in_situ
+
+    progress_text.write("Entrenamiento completado")
+    progress_bar.progress(100)
+    time.sleep(0.3)
+
+    progress_bar.empty()
+    progress_text.empty()
 
 if st.session_state["tree_model_in_situ"] is not None:
     st.success("Modelo entrenado correctamente")
