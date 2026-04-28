@@ -2,6 +2,15 @@ import os
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
 # =========================
 # Configuración de página
@@ -16,6 +25,7 @@ sus métricas, matriz de confusión y ejemplos de predicción.
 # Cargar datos
 # =========================
 @st.cache_data
+@st.cache_data
 def load_model_outputs():
     model_metrics = pd.read_csv("data/exports/model_metrics.csv")
     logreg_preds = pd.read_csv("data/exports/logreg_validation_predictions.csv")
@@ -23,6 +33,8 @@ def load_model_outputs():
     logreg_cm_pct = pd.read_csv("data/exports/logreg_confusion_matrix_percentage.csv", index_col=0)
     rf_cm_pct = pd.read_csv("data/exports/rf_confusion_matrix_percentage.csv", index_col=0)
     rf_feature_importance = pd.read_csv("data/exports/rf_feature_importance.csv")
+    train_model_ready = pd.read_csv("data/processed/train_model_ready.csv")
+
     return (
         model_metrics,
         logreg_preds,
@@ -30,6 +42,7 @@ def load_model_outputs():
         logreg_cm_pct,
         rf_cm_pct,
         rf_feature_importance,
+        train_model_ready,
     )
 
 (
@@ -39,6 +52,7 @@ def load_model_outputs():
     logreg_cm_pct,
     rf_cm_pct,
     rf_feature_importance,
+    train_model_ready,
 ) = load_model_outputs()
 
 # =========================
@@ -117,6 +131,193 @@ fig_metrics.update_layout(
 )
 
 st.plotly_chart(fig_metrics, use_container_width=True)
+
+def build_tree_preprocessor(X: pd.DataFrame):
+    numeric_features = X.select_dtypes(include=["int64", "float64", "int32", "float32"]).columns.tolist()
+    categorical_features = X.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+
+    numeric_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="median"))
+    ])
+
+    categorical_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("onehot", OneHotEncoder(handle_unknown="ignore"))
+    ])
+
+    preprocessor = ColumnTransformer(transformers=[
+        ("num", numeric_transformer, numeric_features),
+        ("cat", categorical_transformer, categorical_features)
+    ])
+
+    return preprocessor, numeric_features, categorical_features
+
+
+def train_decision_tree_in_situ(
+    df: pd.DataFrame,
+    target: str = "churned",
+    max_depth: int = 4,
+    min_samples_split: int = 20,
+    test_size: float = 0.2,
+    random_state: int = 42
+):
+    df = df.copy()
+
+    drop_cols = [col for col in ["y_true", "y_pred", "p_churn"] if col in df.columns]
+    if drop_cols:
+        df = df.drop(columns=drop_cols)
+
+    X = df.drop(columns=[target])
+    y = df[target]
+
+    preprocessor, _, _ = build_tree_preprocessor(X)
+
+    tree_model = Pipeline(steps=[
+        ("preprocessor", preprocessor),
+        ("classifier", DecisionTreeClassifier(
+            max_depth=max_depth,
+            min_samples_split=min_samples_split,
+            random_state=random_state
+        ))
+    ])
+
+    X_train, X_valid, y_train, y_valid = train_test_split(
+        X, y,
+        test_size=test_size,
+        stratify=y,
+        random_state=random_state
+    )
+
+    tree_model.fit(X_train, y_train)
+
+    y_pred = tree_model.predict(X_valid)
+    y_proba = tree_model.predict_proba(X_valid)[:, 1]
+
+    metrics = {
+        "accuracy": accuracy_score(y_valid, y_pred),
+        "precision": precision_score(y_valid, y_pred, zero_division=0),
+        "recall": recall_score(y_valid, y_pred, zero_division=0),
+        "f1": f1_score(y_valid, y_pred, zero_division=0),
+        "roc_auc": roc_auc_score(y_valid, y_proba),
+    }
+
+    # nombres de columnas transformadas
+    feature_names = tree_model.named_steps["preprocessor"].get_feature_names_out()
+    fitted_tree = tree_model.named_steps["classifier"]
+
+    importance_df = pd.DataFrame({
+        "feature": feature_names,
+        "importance": fitted_tree.feature_importances_
+    }).sort_values("importance", ascending=False)
+
+    return tree_model, metrics, importance_df, feature_names
+
+# =========================================================
+# Entrenamiento in situ - Árbol de decisión
+# =========================================================
+st.markdown("---")
+st.subheader("Entrenamiento in situ: Árbol de decisión")
+st.caption(
+    "Esta sección entrena un modelo sencillo directamente desde la app para demostrar "
+    "el flujo completo de entrenamiento, evaluación e interpretación."
+)
+
+train_col1, train_col2, train_col3 = st.columns(3)
+
+with train_col1:
+    max_depth_in_situ = st.slider(
+        "max_depth",
+        min_value=2,
+        max_value=8,
+        value=4,
+        step=1
+    )
+
+with train_col2:
+    min_samples_split_in_situ = st.slider(
+        "min_samples_split",
+        min_value=2,
+        max_value=50,
+        value=20,
+        step=2
+    )
+
+with train_col3:
+    train_clicked = st.button("Entrenar árbol in situ")
+
+if "tree_model_in_situ" not in st.session_state:
+    st.session_state["tree_model_in_situ"] = None
+    st.session_state["tree_metrics_in_situ"] = None
+    st.session_state["tree_importance_in_situ"] = None
+    st.session_state["tree_feature_names_in_situ"] = None
+
+if train_clicked:
+    with st.spinner("Entrenando árbol de decisión..."):
+        tree_model_in_situ, tree_metrics_in_situ, tree_importance_in_situ, tree_feature_names_in_situ = train_decision_tree_in_situ(
+            train_model_ready,
+            target="churned",
+            max_depth=max_depth_in_situ,
+            min_samples_split=min_samples_split_in_situ
+        )
+
+        st.session_state["tree_model_in_situ"] = tree_model_in_situ
+        st.session_state["tree_metrics_in_situ"] = tree_metrics_in_situ
+        st.session_state["tree_importance_in_situ"] = tree_importance_in_situ
+        st.session_state["tree_feature_names_in_situ"] = tree_feature_names_in_situ
+
+if st.session_state["tree_model_in_situ"] is not None:
+    st.success("Modelo entrenado correctamente")
+
+    metrics = st.session_state["tree_metrics_in_situ"]
+
+    m1, m2, m3, m4, m5 = st.columns(5)
+    with m1:
+        st.metric("Accuracy", f"{metrics['accuracy']:.3f}")
+    with m2:
+        st.metric("Precision", f"{metrics['precision']:.3f}")
+    with m3:
+        st.metric("Recall", f"{metrics['recall']:.3f}")
+    with m4:
+        st.metric("F1", f"{metrics['f1']:.3f}")
+    with m5:
+        st.metric("ROC AUC", f"{metrics['roc_auc']:.3f}")
+
+    viz_col1, viz_col2 = st.columns([1.4, 1])
+
+    with viz_col1:
+        st.markdown("#### Árbol de decisión")
+        tree_fig = build_tree_figure(
+            st.session_state["tree_model_in_situ"],
+            st.session_state["tree_feature_names_in_situ"],
+            max_depth_display=3
+        )
+        st.pyplot(tree_fig)
+
+    with viz_col2:
+        st.markdown("#### Importancia de variables")
+        tree_importance_df = st.session_state["tree_importance_in_situ"].head(10).copy()
+        tree_importance_df["feature_clean"] = (
+            tree_importance_df["feature"]
+            .str.replace("num__", "", regex=False)
+            .str.replace("cat__", "", regex=False)
+            .str.replace("_", " ", regex=False)
+        )
+
+        fig_tree_imp = px.bar(
+            tree_importance_df.sort_values("importance", ascending=True),
+            x="importance",
+            y="feature_clean",
+            orientation="h",
+            title="Top variables del árbol in situ",
+            text="importance"
+        )
+
+        fig_tree_imp.update_traces(texttemplate="%{text:.3f}", textposition="outside")
+        fig_tree_imp.update_layout(title_x=0.5)
+        st.plotly_chart(fig_tree_imp, use_container_width=True)
+
+else:
+    st.info("Pulsa el botón para entrenar un árbol de decisión dentro de la app.")
 
 # =========================
 # Matriz de confusión + importance
