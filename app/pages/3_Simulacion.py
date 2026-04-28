@@ -4,7 +4,7 @@ import numpy as np
 import joblib
 from datetime import datetime
 
-st.title("Simulación en vivo")
+st.subheader("Simulación en vivo")
 st.markdown("""
 Esta sección permite simular nuevos clientes y estimar su riesgo de churn
 utilizando el modelo de Logistic Regression desplegado en la aplicación.
