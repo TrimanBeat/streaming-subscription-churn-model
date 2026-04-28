@@ -132,6 +132,10 @@ fig_metrics.update_layout(
 
 st.plotly_chart(fig_metrics, use_container_width=True)
 
+# =========================================================
+# Funciones auxiliares para entrenar árbol in situ
+# =========================================================
+
 def build_tree_preprocessor(X: pd.DataFrame):
     numeric_features = X.select_dtypes(include=["int64", "float64", "int32", "float32"]).columns.tolist()
     categorical_features = X.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
@@ -211,6 +215,24 @@ def train_decision_tree_in_situ(
     }).sort_values("importance", ascending=False)
 
     return tree_model, metrics, importance_df, feature_names
+
+
+def build_tree_figure(tree_model, feature_names, max_depth_display=3):
+    clf = tree_model.named_steps["classifier"]
+
+    fig, ax = plt.subplots(figsize=(20, 10))
+    plot_tree(
+        clf,
+        feature_names=feature_names,
+        class_names=["No Churn", "Churn"],
+        filled=True,
+        rounded=True,
+        fontsize=8,
+        max_depth=max_depth_display,
+        ax=ax
+    )
+    plt.tight_layout()
+    return fig
 
 # =========================================================
 # Entrenamiento in situ - Árbol de decisión
