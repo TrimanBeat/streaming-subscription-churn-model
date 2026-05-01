@@ -1,0 +1,16 @@
+model,metric,score
+DNN Tuned,accuracy,0.82804
+LogReg Tuned,accuracy,0.8414
+RF Tuned,accuracy,0.84748
+DNN Tuned,precision,0.8502379780075496
+LogReg Tuned,precision,0.8461598501404933
+RF Tuned,precision,0.8493108254607403
+DNN Tuned,recall,0.8072458122321776
+LogReg Tuned,recall,0.8446435527853525
+RF Tuned,recall,0.8545383716400468
+DNN Tuned,f1,0.8281843251668598
+LogReg Tuned,f1,0.845401021561976
+RF Tuned,f1,0.8519165792846324
+DNN Tuned,roc_auc,0.9218913936745928
+LogReg Tuned,roc_auc,0.9302028032614145
+RF Tuned,roc_auc,0.938250990191195

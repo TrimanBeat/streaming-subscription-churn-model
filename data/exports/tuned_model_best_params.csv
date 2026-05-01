@@ -1,0 +1,4 @@
+model,classifier__solver,classifier__class_weight,classifier__C,classifier__n_estimators,classifier__min_samples_split,classifier__min_samples_leaf,classifier__max_features,classifier__max_depth,classifier__model__learning_rate,classifier__model__hidden_units,classifier__model__dropout_rate,classifier__epochs,classifier__batch_size
+LogReg Tuned,lbfgs,,12.32846739442066,,,,,,,,,,
+RF Tuned,,,,300.0,10.0,2.0,,12.0,,,,,
+DNN Tuned,,,,,,,,,0.001,"(128, 64)",0.0,20.0,32.0
