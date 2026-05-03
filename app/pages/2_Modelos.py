@@ -30,44 +30,66 @@ except ImportError:
     GEMINI_AVAILABLE = False
 
 # =========================================================
-# Configuración y título
+# Título
 # =========================================================
-st.subheader("Modelos Predictivos")
+st.title("Modelos Predictivos")
 st.markdown("""
-En esta sección se comparan los modelos entrenados y se muestran
+En esta sección se comparan los modelos ajustados del proyecto y se exploran
 sus métricas, errores y principales señales de riesgo.
 """)
 
 # =========================================================
-# Carga de datos
+# Carga de outputs
 # =========================================================
 @st.cache_data
 def load_model_outputs():
-    model_metrics = pd.read_csv("data/exports/model_metrics.csv")
-    logreg_preds = pd.read_csv("data/exports/logreg_validation_predictions.csv")
-    rf_preds = pd.read_csv("data/exports/rf_validation_predictions.csv")
-    logreg_cm_pct = pd.read_csv("data/exports/logreg_confusion_matrix_percentage.csv", index_col=0)
-    rf_cm_pct = pd.read_csv("data/exports/rf_confusion_matrix_percentage.csv", index_col=0)
-    rf_feature_importance = pd.read_csv("data/exports/rf_feature_importance.csv")
+    tuned_model_comparison = pd.read_csv("data/exports/tuned_model_comparison.csv")
+    tuned_model_comparison_long = pd.read_csv("data/exports/tuned_model_comparison_long.csv")
+
+    logreg_tuned_metrics = pd.read_csv("data/exports/logreg_tuned_metrics.csv")
+    logreg_tuned_preds = pd.read_csv("data/exports/logreg_tuned_validation_predictions.csv")
+    logreg_tuned_cm_pct = pd.read_csv(
+        "data/exports/logreg_tuned_confusion_matrix_percentage.csv",
+        index_col=0
+    )
+    logreg_tuned_coefficients = pd.read_csv("data/exports/logreg_tuned_coefficients.csv")
+
+    rf_tuned_metrics = pd.read_csv("data/exports/rf_tuned_metrics.csv")
+    rf_tuned_preds = pd.read_csv("data/exports/rf_tuned_validation_predictions.csv")
+    rf_tuned_cm_pct = pd.read_csv(
+        "data/exports/rf_tuned_confusion_matrix_percentage.csv",
+        index_col=0
+    )
+    rf_tuned_feature_importance = pd.read_csv("data/exports/rf_tuned_feature_importance.csv")
+
     train_model_ready = pd.read_csv("data/processed/train_model_ready.csv")
 
     return (
-        model_metrics,
-        logreg_preds,
-        rf_preds,
-        logreg_cm_pct,
-        rf_cm_pct,
-        rf_feature_importance,
+        tuned_model_comparison,
+        tuned_model_comparison_long,
+        logreg_tuned_metrics,
+        logreg_tuned_preds,
+        logreg_tuned_cm_pct,
+        logreg_tuned_coefficients,
+        rf_tuned_metrics,
+        rf_tuned_preds,
+        rf_tuned_cm_pct,
+        rf_tuned_feature_importance,
         train_model_ready,
     )
 
+
 (
-    model_metrics,
-    logreg_preds,
-    rf_preds,
-    logreg_cm_pct,
-    rf_cm_pct,
-    rf_feature_importance,
+    tuned_model_comparison,
+    tuned_model_comparison_long,
+    logreg_tuned_metrics,
+    logreg_tuned_preds,
+    logreg_tuned_cm_pct,
+    logreg_tuned_coefficients,
+    rf_tuned_metrics,
+    rf_tuned_preds,
+    rf_tuned_cm_pct,
+    rf_tuned_feature_importance,
     train_model_ready,
 ) = load_model_outputs()
 
@@ -88,6 +110,7 @@ def build_model_summary_prompt(
     selected_model: str,
     current_metrics: pd.Series,
     rf_feature_importance: pd.DataFrame | None = None,
+    logreg_coefficients: pd.DataFrame | None = None,
     top_n: int = 12
 ) -> str:
     metrics_text = f"""
@@ -137,8 +160,50 @@ Instrucciones:
 - Sé claro, breve y presentable
 - No inventes relaciones no presentes en la tabla
 """
-    else:
+        return prompt
+
+    if selected_model == "Logistic Regression" and logreg_coefficients is not None:
+        coef_col = "feature_clean" if "feature_clean" in logreg_coefficients.columns else "feature"
+
+        pos_df = logreg_coefficients.sort_values("coefficient", ascending=False).head(6)
+        neg_df = logreg_coefficients.sort_values("coefficient", ascending=True).head(6)
+
+        pos_lines = [f"- {row[coef_col]}: {row['coefficient']:.4f}" for _, row in pos_df.iterrows()]
+        neg_lines = [f"- {row[coef_col]}: {row['coefficient']:.4f}" for _, row in neg_df.iterrows()]
+
         prompt = f"""
+Eres un asistente que ayuda a explicar un dashboard de predicción de churn a una audiencia universitaria.
+
+{metrics_text}
+
+Coeficientes positivos más relevantes:
+{chr(10).join(pos_lines)}
+
+Coeficientes negativos más relevantes:
+{chr(10).join(neg_lines)}
+
+Escribe la respuesta en español y con este formato exacto en Markdown:
+
+### Resumen general
+2 o 3 frases breves sobre el rendimiento del modelo.
+
+### Lectura de coeficientes
+- 2 o 3 viñetas explicando qué variables parecen empujar hacia churn
+- 2 o 3 viñetas explicando qué variables parecen asociarse con menor riesgo
+- aclara que los coeficientes dependen del resto de variables del modelo
+
+### Nota final
+- 1 viñeta breve sobre el carácter interpretable de la regresión logística
+
+Instrucciones:
+- No escribas la respuesta en un solo párrafo
+- Usa títulos y viñetas
+- Sé claro, breve y presentable
+- No inventes relaciones no presentes en la tabla
+"""
+        return prompt
+
+    prompt = f"""
 Eres un asistente que ayuda a explicar un dashboard de predicción de churn a una audiencia universitaria.
 
 {metrics_text}
@@ -207,7 +272,7 @@ def build_tree_preprocessor(X: pd.DataFrame):
         ("cat", categorical_transformer, categorical_features)
     ])
 
-    return preprocessor, numeric_features, categorical_features
+    return preprocessor
 
 
 def train_decision_tree_in_situ(
@@ -227,7 +292,7 @@ def train_decision_tree_in_situ(
     X = df.drop(columns=[target])
     y = df[target]
 
-    preprocessor, _, _ = build_tree_preprocessor(X)
+    preprocessor = build_tree_preprocessor(X)
 
     tree_model = Pipeline(steps=[
         ("preprocessor", preprocessor),
@@ -288,23 +353,35 @@ def build_tree_figure(tree_model, feature_names, max_depth_display=3):
     return fig
 
 # =========================================================
-# Comparación global de modelos
+# Comparación global
 # =========================================================
 st.subheader("Comparación global de modelos")
 
-metrics_long = model_metrics.melt(
-    id_vars="model",
-    var_name="metric",
-    value_name="score"
+comparison_long = tuned_model_comparison_long.copy()
+
+metric_order = ["accuracy", "precision", "recall", "f1", "roc_auc"]
+comparison_long["metric"] = pd.Categorical(
+    comparison_long["metric"],
+    categories=metric_order,
+    ordered=True
 )
 
+model_order = ["LogReg Tuned", "RF Tuned", "DNN Tuned"]
+comparison_long["model"] = pd.Categorical(
+    comparison_long["model"],
+    categories=model_order,
+    ordered=True
+)
+
+comparison_long = comparison_long.sort_values(["metric", "model"])
+
 fig_metrics = px.bar(
-    metrics_long,
+    comparison_long,
     x="metric",
     y="score",
     color="model",
     barmode="group",
-    title="Comparación de métricas por modelo",
+    title="Comparación de modelos tuneados",
     text="score"
 )
 
@@ -318,7 +395,7 @@ fig_metrics.update_layout(
 st.plotly_chart(fig_metrics, use_container_width=True)
 
 # =========================================================
-# Selector de modelo preentrenado
+# Selector de modelo
 # =========================================================
 st.subheader("Selección de modelo")
 
@@ -328,19 +405,15 @@ selected_model = st.selectbox(
 )
 
 if selected_model == "Logistic Regression":
-    current_metrics = model_metrics[
-        model_metrics["model"].str.contains("Logistic", case=False, na=False)
-    ].iloc[0]
-    current_preds = logreg_preds
-    current_cm = logreg_cm_pct
-    show_feature_importance = False
+    current_metrics = logreg_tuned_metrics.iloc[0]
+    current_preds = logreg_tuned_preds
+    current_cm = logreg_tuned_cm_pct
+    show_feature_visual = "coefficients"
 else:
-    current_metrics = model_metrics[
-        model_metrics["model"].str.contains("Random", case=False, na=False)
-    ].iloc[0]
-    current_preds = rf_preds
-    current_cm = rf_cm_pct
-    show_feature_importance = True
+    current_metrics = rf_tuned_metrics.iloc[0]
+    current_preds = rf_tuned_preds
+    current_cm = rf_tuned_cm_pct
+    show_feature_visual = "importance"
 
 # =========================================================
 # Resumen del modelo seleccionado
@@ -362,7 +435,7 @@ with col4:
     st.metric("ROC AUC", f"{current_metrics['roc_auc']:.3f}")
 
 # =========================================================
-# Matriz + importancia
+# Matriz + visualización del modelo
 # =========================================================
 col_left, col_right = st.columns([1, 1])
 
@@ -389,8 +462,8 @@ with col_left:
 with col_right:
     st.subheader("Interpretación de variables")
 
-    if show_feature_importance:
-        top_features = rf_feature_importance.head(15).copy()
+    if show_feature_visual == "importance":
+        top_features = rf_tuned_feature_importance.head(15).copy()
         feature_col = "feature_clean" if "feature_clean" in top_features.columns else "feature"
         top_features = top_features.sort_values("importance", ascending=True)
 
@@ -411,14 +484,35 @@ with col_right:
         )
 
         st.plotly_chart(fig_importance, use_container_width=True)
+
     else:
-        st.info(
-            "Para Logistic Regression no se está mostrando aún una visualización específica "
-            "de importancia de variables en esta versión de la app."
+        coef_df = logreg_tuned_coefficients.copy()
+        feature_col = "feature_clean" if "feature_clean" in coef_df.columns else "feature"
+
+        top_pos = coef_df.sort_values("coefficient", ascending=False).head(8)
+        top_neg = coef_df.sort_values("coefficient", ascending=True).head(8)
+        coef_plot_df = pd.concat([top_neg, top_pos], axis=0)
+
+        fig_coef = px.bar(
+            coef_plot_df,
+            x="coefficient",
+            y=feature_col,
+            orientation="h",
+            title="Coeficientes más relevantes",
+            text="coefficient"
         )
 
+        fig_coef.update_traces(texttemplate="%{text:.3f}", textposition="outside")
+        fig_coef.update_layout(
+            title_x=0.5,
+            xaxis_title="Coeficiente",
+            yaxis_title="Variable"
+        )
+
+        st.plotly_chart(fig_coef, use_container_width=True)
+
 # =========================================================
-# Clientes no churn con mayor riesgo
+# Clientes activos con mayor riesgo
 # =========================================================
 st.subheader(f"Clientes activos con mayor riesgo estimado - {selected_model}")
 
@@ -440,7 +534,7 @@ top_risk = current_preds_filtered.sort_values("p_churn", ascending=False)[show_c
 st.dataframe(top_risk, use_container_width=True)
 
 # =========================================================
-# Interpretación asistida con Gemini
+# Gemini
 # =========================================================
 st.subheader("Interpretación asistida")
 
@@ -463,7 +557,8 @@ if generate_clicked:
     prompt = build_model_summary_prompt(
         selected_model=selected_model,
         current_metrics=current_metrics,
-        rf_feature_importance=rf_feature_importance if selected_model == "Random Forest" else None,
+        rf_feature_importance=rf_tuned_feature_importance if selected_model == "Random Forest" else None,
+        logreg_coefficients=logreg_tuned_coefficients if selected_model == "Logistic Regression" else None,
         top_n=12
     )
     with st.spinner("Generando resumen..."):
@@ -476,7 +571,7 @@ else:
     st.info("Pulsa el botón para generar una interpretación automática.")
 
 # =========================================================
-# Entrenamiento in situ - Árbol de decisión
+# Árbol in situ
 # =========================================================
 st.markdown("---")
 st.subheader("Entrenamiento in situ: Árbol de decisión")
