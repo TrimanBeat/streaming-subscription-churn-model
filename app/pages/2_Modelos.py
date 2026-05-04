@@ -328,35 +328,6 @@ def get_dnn_config(best_params_df: pd.DataFrame):
     }
     return config
 
-
-def build_dnn_architecture_graph(hidden_units, dropout_rate):
-    lines = [
-        "digraph G {",
-        'rankdir=LR;',
-        'node [shape=box, style="rounded,filled", fillcolor="#EAF2FF", color="#4A6FA5", fontname="Helvetica"];',
-        'input [label="Entrada\\n(features preprocesadas)"];'
-    ]
-
-    prev = "input"
-
-    for i, units in enumerate(hidden_units, start=1):
-        dense_node = f"dense{i}"
-        drop_node = f"drop{i}"
-
-        lines.append(f'{dense_node} [label="Dense {units}\\nReLU"];')
-        lines.append(f'{drop_node} [label="Dropout\\nrate={dropout_rate}"];')
-
-        lines.append(f"{prev} -> {dense_node};")
-        lines.append(f"{dense_node} -> {drop_node};")
-
-        prev = drop_node
-
-    lines.append('output [label="Salida\\n1 neurona\\nSigmoid", fillcolor="#FFEFD5", color="#C97B63"];')
-    lines.append(f"{prev} -> output;")
-    lines.append("}")
-
-    return "\\n".join(lines)
-
 # =========================================================
 # Funciones auxiliares - Árbol in situ
 # =========================================================
@@ -628,11 +599,26 @@ with col_right:
         dnn_config = get_dnn_config(tuned_model_best_params)
 
         st.markdown("#### Arquitectura de la red")
-        dnn_graph = build_dnn_architecture_graph(
-            hidden_units=dnn_config["hidden_units"],
-            dropout_rate=dnn_config["dropout_rate"]
-        )
-        st.graphviz_chart(dnn_graph)
+
+        arch_rows = [{"Capa": "Entrada", "Configuración": "Features preprocesadas"}]
+
+        for i, units in enumerate(dnn_config["hidden_units"], start=1):
+            arch_rows.append({
+                "Capa": f"Dense {i}",
+                "Configuración": f"{units} neuronas + ReLU"
+            })
+            arch_rows.append({
+                "Capa": f"Dropout {i}",
+                "Configuración": f"rate = {dnn_config['dropout_rate']}"
+            })
+
+        arch_rows.append({
+            "Capa": "Salida",
+            "Configuración": "1 neurona + Sigmoid"
+        })
+
+        arch_df = pd.DataFrame(arch_rows)
+        st.dataframe(arch_df, use_container_width=True, hide_index=True)
 
         st.markdown("#### Mejores hiperparámetros")
         dnn_config_df = pd.DataFrame({
