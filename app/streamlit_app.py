@@ -1,46 +1,55 @@
+from pathlib import Path
 import streamlit as st
-import pandas as pd
 
 st.set_page_config(
-    page_title="Dashboard de Predicción del Churn",
-    layout="wide"
+    page_title="Churn Analytics Dashboard",
+    page_icon="../assets/logo.png",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-@st.cache_data
-def load_main_data():
-    model_metrics = pd.read_csv("data/exports/model_metrics.csv")
-    train_model_ready = pd.read_csv("data/processed/train_model_ready.csv")
-    return model_metrics, train_model_ready
+def load_css():
+    css_path = Path("app/styles.css")
+    if css_path.exists():
+        with open(css_path, "r", encoding="utf-8") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-model_metrics, train_model_ready = load_main_data()
+load_css()
 
-n_customers = len(train_model_ready)
-global_churn_rate = train_model_ready["churned"].mean() if "churned" in train_model_ready.columns else 0
+st.sidebar.image("../assets/logo.png", use_container_width=True)
+st.sidebar.markdown("## Churn Analytics Dashboard")
+st.sidebar.caption("Predicción y análisis de abandono de clientes")
 
-best_model_name = "N/A"
-best_model_auc = None
+st.title("Churn Analytics Dashboard")
+st.markdown(
+    "Aplicación interactiva para analizar patrones de abandono, comparar modelos predictivos y simular riesgo de churn en nuevos clientes."
+)
 
-if "model" in model_metrics.columns and "roc_auc" in model_metrics.columns:
-    best_row = model_metrics.sort_values("roc_auc", ascending=False).iloc[0]
-    best_model_name = best_row["model"]
-    best_model_auc = best_row["roc_auc"]
+c1, c2, c3 = st.columns(3)
 
-st.subheader("Dashboard de churn de subscripción a la plataforma")
-st.markdown("Dashboard interactivo para explorar churn, comparar modelos y simular nuevos clientes.")
+with c1:
+    st.markdown("### Problema")
+    st.write(
+        "Identificar clientes con mayor probabilidad de abandono y entender qué variables "
+        "están más relacionadas con ese comportamiento."
+    )
 
-col1, col2, col3, col4 = st.columns(4)
+with c2:
+    st.markdown("### Enfoque")
+    st.write(
+        "El proyecto combina análisis exploratorio, feature engineering, comparación de modelos "
+        "y despliegue en una app interactiva."
+    )
 
-with col1:
-    st.metric("Clientes", f"{n_customers:,}")
-
-with col2:
-    st.metric("Tasa global de churn", f"{global_churn_rate:.2%}")
-
-with col3:
-    st.metric("Mejor modelo", best_model_name)
-
-with col4:
-    st.metric("Mejor ROC AUC", f"{best_model_auc:.3f}" if best_model_auc is not None else "N/A")
+with c3:
+    st.markdown("### Qué incluye")
+    st.write(
+        "EDA interactivo, comparación de modelos, simulación de clientes y visualización de resultados "
+        "para apoyar decisiones de negocio."
+    )
 
 st.markdown("---")
-st.info("Usa el menú lateral para navegar entre EDA y Segmentos, Modelos y Simulación.")
+st.markdown("### Navegación")
+st.write(
+    "Usa el menú lateral para explorar las secciones de EDA, modelos y simulación."
+)
