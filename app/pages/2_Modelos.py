@@ -5,6 +5,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import matplotlib.pyplot as plt
+import ast
 
 from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
@@ -42,9 +43,11 @@ sus métricas, errores y principales señales de riesgo.
 # Carga de outputs
 # =========================================================
 @st.cache_data
+@st.cache_data
 def load_model_outputs():
     tuned_model_comparison = pd.read_csv("data/exports/tuned_model_comparison.csv")
     tuned_model_comparison_long = pd.read_csv("data/exports/tuned_model_comparison_long.csv")
+    tuned_model_best_params = pd.read_csv("data/exports/tuned_model_best_params.csv")
 
     logreg_tuned_metrics = pd.read_csv("data/exports/logreg_tuned_metrics.csv")
     logreg_tuned_preds = pd.read_csv("data/exports/logreg_tuned_validation_predictions.csv")
@@ -62,11 +65,19 @@ def load_model_outputs():
     )
     rf_tuned_feature_importance = pd.read_csv("data/exports/rf_tuned_feature_importance.csv")
 
+    dnn_tuned_metrics = pd.read_csv("data/exports/dnn_tuned_metrics.csv")
+    dnn_tuned_preds = pd.read_csv("data/exports/dnn_tuned_validation_predictions.csv")
+    dnn_tuned_cm_pct = pd.read_csv(
+        "data/exports/dnn_tuned_confusion_matrix_percentage.csv",
+        index_col=0
+    )
+
     train_model_ready = pd.read_csv("data/processed/train_model_ready.csv")
 
     return (
         tuned_model_comparison,
         tuned_model_comparison_long,
+        tuned_model_best_params,
         logreg_tuned_metrics,
         logreg_tuned_preds,
         logreg_tuned_cm_pct,
@@ -75,6 +86,9 @@ def load_model_outputs():
         rf_tuned_preds,
         rf_tuned_cm_pct,
         rf_tuned_feature_importance,
+        dnn_tuned_metrics,
+        dnn_tuned_preds,
+        dnn_tuned_cm_pct,
         train_model_ready,
     )
 
@@ -82,6 +96,7 @@ def load_model_outputs():
 (
     tuned_model_comparison,
     tuned_model_comparison_long,
+    tuned_model_best_params,
     logreg_tuned_metrics,
     logreg_tuned_preds,
     logreg_tuned_cm_pct,
@@ -90,6 +105,9 @@ def load_model_outputs():
     rf_tuned_preds,
     rf_tuned_cm_pct,
     rf_tuned_feature_importance,
+    dnn_tuned_metrics,
+    dnn_tuned_preds,
+    dnn_tuned_cm_pct,
     train_model_ready,
 ) = load_model_outputs()
 
@@ -203,6 +221,39 @@ Instrucciones:
 """
         return prompt
 
+    if selected_model == "Deep Neural Network":
+        prompt = f"""
+Eres un asistente que ayuda a explicar un dashboard de predicción de churn a una audiencia universitaria.
+
+Modelo seleccionado: {selected_model}
+
+Rendimiento:
+- Accuracy: {current_metrics['accuracy']:.3f}
+- Precision: {current_metrics['precision']:.3f}
+- Recall: {current_metrics['recall']:.3f}
+- F1-score: {current_metrics['f1']:.3f}
+- ROC AUC: {current_metrics['roc_auc']:.3f}
+
+Escribe la respuesta en español y con este formato exacto en Markdown:
+
+### Resumen general
+2 o 3 frases sobre el rendimiento de la red neuronal.
+
+### Lectura del modelo
+- 2 o 3 viñetas explicando que se trata de una red densa para datos tabulares
+- 1 viñeta explicando que su interpretación interna es menos directa que la de LogReg o RF
+- 1 viñeta explicando por qué sigue siendo útil compararla
+
+### Nota final
+- 1 frase breve indicando si el modelo mejora o no a los modelos clásicos del proyecto
+
+Instrucciones:
+- No escribas la respuesta en un solo párrafo
+- Usa títulos y viñetas
+- Sé claro, breve y presentable
+"""
+        return prompt
+
     prompt = f"""
 Eres un asistente que ayuda a explicar un dashboard de predicción de churn a una audiencia universitaria.
 
@@ -227,6 +278,8 @@ Instrucciones:
 """
     return prompt
 
+    
+
 
 def generate_gemini_summary(prompt: str) -> str:
     api_key = get_gemini_api_key()
@@ -250,6 +303,59 @@ def generate_gemini_summary(prompt: str) -> str:
         return response.text
     except Exception as e:
         return f"Error al generar el resumen con Gemini: {e}"
+    
+    
+    
+# =========================================================
+# Funciones auxiliares - Gráfico DNN
+# =========================================================    
+    
+def get_dnn_config(best_params_df: pd.DataFrame):
+    dnn_row = best_params_df[best_params_df["model"] == "DNN Tuned"].iloc[0]
+
+    hidden_units_raw = dnn_row["classifier__model__hidden_units"]
+    if isinstance(hidden_units_raw, str):
+        hidden_units = ast.literal_eval(hidden_units_raw)
+    else:
+        hidden_units = hidden_units_raw
+
+    config = {
+        "hidden_units": hidden_units,
+        "dropout_rate": float(dnn_row["classifier__model__dropout_rate"]),
+        "learning_rate": float(dnn_row["classifier__model__learning_rate"]),
+        "batch_size": int(dnn_row["classifier__batch_size"]),
+        "epochs": int(dnn_row["classifier__epochs"]),
+    }
+    return config
+
+
+def build_dnn_architecture_graph(hidden_units, dropout_rate):
+    lines = [
+        "digraph G {",
+        'rankdir=LR;',
+        'node [shape=box, style="rounded,filled", fillcolor="#EAF2FF", color="#4A6FA5", fontname="Helvetica"];',
+        'input [label="Entrada\\n(features preprocesadas)"];'
+    ]
+
+    prev = "input"
+
+    for i, units in enumerate(hidden_units, start=1):
+        dense_node = f"dense{i}"
+        drop_node = f"drop{i}"
+
+        lines.append(f'{dense_node} [label="Dense {units}\\nReLU"];')
+        lines.append(f'{drop_node} [label="Dropout\\nrate={dropout_rate}"];')
+
+        lines.append(f"{prev} -> {dense_node};")
+        lines.append(f"{dense_node} -> {drop_node};")
+
+        prev = drop_node
+
+    lines.append('output [label="Salida\\n1 neurona\\nSigmoid", fillcolor="#FFEFD5", color="#C97B63"];')
+    lines.append(f"{prev} -> output;")
+    lines.append("}")
+
+    return "\\n".join(lines)
 
 # =========================================================
 # Funciones auxiliares - Árbol in situ
@@ -401,7 +507,7 @@ st.subheader("Selección de modelo")
 
 selected_model = st.selectbox(
     "Selecciona un modelo para explorar",
-    ["Logistic Regression", "Random Forest"]
+    ["Logistic Regression", "Random Forest", "Deep Neural Network"]
 )
 
 if selected_model == "Logistic Regression":
@@ -409,11 +515,18 @@ if selected_model == "Logistic Regression":
     current_preds = logreg_tuned_preds
     current_cm = logreg_tuned_cm_pct
     show_feature_visual = "coefficients"
-else:
+
+elif selected_model == "Random Forest":
     current_metrics = rf_tuned_metrics.iloc[0]
     current_preds = rf_tuned_preds
     current_cm = rf_tuned_cm_pct
     show_feature_visual = "importance"
+
+else:
+    current_metrics = dnn_tuned_metrics.iloc[0]
+    current_preds = dnn_tuned_preds
+    current_cm = dnn_tuned_cm_pct
+    show_feature_visual = "dnn"
 
 # =========================================================
 # Resumen del modelo seleccionado
@@ -460,7 +573,7 @@ with col_left:
     st.plotly_chart(fig_cm, use_container_width=True)
 
 with col_right:
-    st.subheader("Interpretación de variables")
+    st.subheader("Interpretación del modelo")
 
     if show_feature_visual == "importance":
         top_features = rf_tuned_feature_importance.head(15).copy()
@@ -485,7 +598,7 @@ with col_right:
 
         st.plotly_chart(fig_importance, use_container_width=True)
 
-    else:
+    elif show_feature_visual == "coefficients":
         coef_df = logreg_tuned_coefficients.copy()
         feature_col = "feature_clean" if "feature_clean" in coef_df.columns else "feature"
 
@@ -511,6 +624,29 @@ with col_right:
 
         st.plotly_chart(fig_coef, use_container_width=True)
 
+    else:
+        dnn_config = get_dnn_config(tuned_model_best_params)
+
+        st.markdown("#### Arquitectura de la red")
+        dnn_graph = build_dnn_architecture_graph(
+            hidden_units=dnn_config["hidden_units"],
+            dropout_rate=dnn_config["dropout_rate"]
+        )
+        st.graphviz_chart(dnn_graph)
+
+        st.markdown("#### Mejores hiperparámetros")
+        dnn_config_df = pd.DataFrame({
+            "Parámetro": ["Hidden units", "Dropout rate", "Learning rate", "Batch size", "Epochs"],
+            "Valor": [
+                str(dnn_config["hidden_units"]),
+                dnn_config["dropout_rate"],
+                dnn_config["learning_rate"],
+                dnn_config["batch_size"],
+                dnn_config["epochs"],
+            ]
+        })
+        st.dataframe(dnn_config_df, use_container_width=True, hide_index=True)
+
 # =========================================================
 # Clientes activos con mayor riesgo
 # =========================================================
@@ -532,6 +668,24 @@ current_preds_filtered = current_preds[current_preds["y_true"] == 0].copy()
 top_risk = current_preds_filtered.sort_values("p_churn", ascending=False)[show_cols].head(20)
 
 st.dataframe(top_risk, use_container_width=True)
+
+if selected_model == "Deep Neural Network":
+    st.subheader("Distribución de probabilidades predichas - DNN")
+
+    fig_dnn_probs = px.histogram(
+        current_preds,
+        x="p_churn",
+        nbins=30,
+        title="Distribución de p_churn en validación"
+    )
+
+    fig_dnn_probs.update_layout(
+        title_x=0.5,
+        xaxis_title="Probabilidad estimada de churn",
+        yaxis_title="Número de clientes"
+    )
+
+    st.plotly_chart(fig_dnn_probs, use_container_width=True)
 
 # =========================================================
 # Gemini
