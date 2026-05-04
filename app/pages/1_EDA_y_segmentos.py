@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -7,6 +8,54 @@ st.markdown("""
 Explora los principales patrones del churn mediante filtros interactivos,
 segmentación visual y una vista geográfica de EE. UU.
 """)
+
+# =========================================================
+# Paleta y helpers visuales
+# =========================================================
+NAVY = "#0F172A"
+RED = "#B42318"
+SOFT_RED = "#F04438"
+BLUE = "#1D4ED8"
+SOFT_BLUE = "#93C5FD"
+GRAY = "#475467"
+LIGHT_BG = "#FFFFFF"
+GRID = "#D0D5DD"
+
+CHURN_COLOR_MAP = {
+    "Churn": RED,
+    "No Churn": BLUE
+}
+
+INQUIRIES_COLOR_MAP = {
+    "High": RED,
+    "Medium": "#F79009",
+    "Low": BLUE
+}
+
+def apply_plot_style(fig):
+    fig.update_layout(
+        title=None,
+        paper_bgcolor=LIGHT_BG,
+        plot_bgcolor=LIGHT_BG,
+        font=dict(color=NAVY),
+        margin=dict(l=20, r=20, t=10, b=20),
+        xaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            title_font=dict(color=NAVY),
+            tickfont=dict(color=NAVY)
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor=GRID,
+            zeroline=False,
+            title_font=dict(color=NAVY),
+            tickfont=dict(color=NAVY)
+        ),
+        legend=dict(title_font=dict(color=NAVY), font=dict(color=NAVY)),
+        coloraxis_colorbar=dict(title_font=dict(color=NAVY), tickfont=dict(color=NAVY))
+    )
+    return fig
 
 # =========================================================
 # Diccionarios geográficos
@@ -185,8 +234,7 @@ def plot_us_state_choropleth(data: pd.DataFrame, mode: str):
             .size()
             .reset_index(name="value")
         )
-        title = "Distribución de clientes por estado"
-        color_scale = "Burg"
+        color_scale = "Blues"
         hover_fmt = {"state_code": False, "value": True}
         colorbar_title = "Clientes"
 
@@ -196,7 +244,6 @@ def plot_us_state_choropleth(data: pd.DataFrame, mode: str):
             .mean()
             .reset_index(name="value")
         )
-        title = "Tasa de churn por estado"
         color_scale = "Reds"
         hover_fmt = {"state_code": False, "value": ":.2%"}
         colorbar_title = "Churn rate"
@@ -209,22 +256,21 @@ def plot_us_state_choropleth(data: pd.DataFrame, mode: str):
         scope="usa",
         color_continuous_scale=color_scale,
         hover_name="location",
-        hover_data=hover_fmt,
-        title=title
+        hover_data=hover_fmt
     )
 
     fig.update_layout(
-        title_x=0.5,
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        margin=dict(l=20, r=20, t=60, b=20),
+        title=None,
+        paper_bgcolor=LIGHT_BG,
+        plot_bgcolor=LIGHT_BG,
+        margin=dict(l=20, r=20, t=10, b=20),
         coloraxis_colorbar_title=colorbar_title
     )
 
     fig.update_geos(
         bgcolor="rgba(0,0,0,0)",
         showland=True,
-        landcolor="rgb(245,245,245)"
+        landcolor="#F2F4F7"
     )
 
     return fig, plot_df
@@ -244,15 +290,13 @@ def plot_region_bubble_map(data: pd.DataFrame, mode: str):
             .size()
             .reset_index(name="value")
         )
-        title = "Distribución de clientes por región"
-        color_scale = "Burg"
+        color_scale = "Blues"
     else:
         plot_df = (
             region_df.groupby("region")["churned"]
             .mean()
             .reset_index(name="value")
         )
-        title = "Tasa de churn por región"
         color_scale = "Reds"
 
     plot_df["lat"] = plot_df["region"].map(lambda x: REGION_COORDS.get(x, {}).get("lat"))
@@ -267,20 +311,19 @@ def plot_region_bubble_map(data: pd.DataFrame, mode: str):
         hover_name="region",
         scope="usa",
         color_continuous_scale=color_scale,
-        title=title
     )
 
     fig.update_layout(
-        title_x=0.5,
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        margin=dict(l=20, r=20, t=60, b=20)
+        title=None,
+        paper_bgcolor=LIGHT_BG,
+        plot_bgcolor=LIGHT_BG,
+        margin=dict(l=20, r=20, t=10, b=20)
     )
 
     fig.update_geos(
         bgcolor="rgba(0,0,0,0)",
         showland=True,
-        landcolor="rgb(245,245,245)"
+        landcolor="#F2F4F7"
     )
 
     return fig, plot_df
@@ -333,17 +376,18 @@ with tab1:
                 .sort_values("churn_rate", ascending=False)
             )
 
+            st.markdown("#### Tasa de churn por tipo de suscripción")
             fig_plan = px.bar(
                 churn_by_plan,
                 x="subscription_type",
                 y="churn_rate",
-                title="Tasa de churn por tipo de suscripción",
                 text="churn_rate",
                 color="churn_rate",
-                color_continuous_scale="Reds"
+                color_continuous_scale=[[0, SOFT_BLUE], [1, RED]]
             )
             fig_plan.update_traces(texttemplate="%{text:.2%}", textposition="outside")
-            fig_plan.update_layout(title_x=0.5, xaxis_title="Tipo de suscripción", yaxis_title="Tasa de churn")
+            apply_plot_style(fig_plan)
+            fig_plan.update_layout(xaxis_title="Tipo de suscripción", yaxis_title="Tasa de churn")
             st.plotly_chart(fig_plan, use_container_width=True)
 
     with top_right:
@@ -355,17 +399,18 @@ with tab1:
                 .sort_values("churn_rate", ascending=False)
             )
 
+            st.markdown("#### Tasa de churn por incidencias")
             fig_inquiries = px.bar(
                 churn_by_inquiries,
                 x="customer_service_inquiries",
                 y="churn_rate",
-                title="Tasa de churn por incidencias",
                 text="churn_rate",
-                color="churn_rate",
-                color_continuous_scale="Reds"
+                color="customer_service_inquiries",
+                color_discrete_map=INQUIRIES_COLOR_MAP
             )
-            fig_inquiries.update_traces(texttemplate="%{text:.2%}", textposition="outside")
-            fig_inquiries.update_layout(title_x=0.5, xaxis_title="Incidencias", yaxis_title="Tasa de churn")
+            fig_inquiries.update_traces(texttemplate="%{y:.2%}", textposition="outside")
+            apply_plot_style(fig_inquiries)
+            fig_inquiries.update_layout(xaxis_title="Incidencias", yaxis_title="Tasa de churn")
             st.plotly_chart(fig_inquiries, use_container_width=True)
 
     bottom_left, bottom_right = st.columns([1.1, 1])
@@ -378,14 +423,16 @@ with tab1:
             if inquiries_filter:
                 compare_df = compare_df[compare_df["customer_service_inquiries"].isin(inquiries_filter)]
 
+            st.markdown("#### Weekly hours según churn vs no churn")
             fig_weekly = px.box(
                 compare_df,
                 x="churn_label",
                 y="weekly_hours",
                 color="churn_label",
-                title="Weekly hours según churn vs no churn"
+                color_discrete_map=CHURN_COLOR_MAP
             )
-            fig_weekly.update_layout(title_x=0.5, showlegend=False)
+            apply_plot_style(fig_weekly)
+            fig_weekly.update_layout(showlegend=False, xaxis_title="Grupo", yaxis_title="Weekly hours")
             st.plotly_chart(fig_weekly, use_container_width=True)
 
     with bottom_right:
@@ -396,14 +443,16 @@ with tab1:
             if inquiries_filter:
                 compare_df = compare_df[compare_df["customer_service_inquiries"].isin(inquiries_filter)]
 
+            st.markdown("#### Song skip rate según churn vs no churn")
             fig_skip = px.box(
                 compare_df,
                 x="churn_label",
                 y="song_skip_rate",
                 color="churn_label",
-                title="Song skip rate según churn vs no churn"
+                color_discrete_map=CHURN_COLOR_MAP
             )
-            fig_skip.update_layout(title_x=0.5, showlegend=False)
+            apply_plot_style(fig_skip)
+            fig_skip.update_layout(showlegend=False, xaxis_title="Grupo", yaxis_title="Song skip rate")
             st.plotly_chart(fig_skip, use_container_width=True)
 
 # ---------------------------------------------------------
@@ -426,20 +475,21 @@ with tab2:
     seg_col1, seg_col2 = st.columns([1.2, 1])
 
     with seg_col1:
+        st.markdown("#### Churn rate por tipo de suscripción e incidencias")
         fig_segments = px.bar(
             segment_filtered,
             x="subscription_type",
             y="churn_rate",
             color="customer_service_inquiries",
             barmode="group",
-            title="Churn rate por tipo de suscripción e incidencias",
             labels={
                 "subscription_type": "Tipo de suscripción",
                 "churn_rate": "Tasa de churn",
                 "customer_service_inquiries": "Incidencias"
-            }
+            },
+            color_discrete_map=INQUIRIES_COLOR_MAP
         )
-        fig_segments.update_layout(title_x=0.5)
+        apply_plot_style(fig_segments)
         st.plotly_chart(fig_segments, use_container_width=True)
 
     with seg_col2:
@@ -451,15 +501,21 @@ with tab2:
             .pivot(index="subscription_type", columns="customer_service_inquiries", values="churned")
         )
 
+        st.markdown("#### Heatmap de churn por segmento")
         fig_heatmap = px.imshow(
             heatmap_df,
             text_auto=".2f",
             aspect="auto",
-            color_continuous_scale="Reds",
-            title="Heatmap de churn por segmento"
+            color_continuous_scale=[[0, SOFT_BLUE], [1, RED]]
         )
         fig_heatmap.update_traces(texttemplate="%{z:.2%}")
-        fig_heatmap.update_layout(title_x=0.5)
+        fig_heatmap.update_layout(
+            title=None,
+            paper_bgcolor=LIGHT_BG,
+            plot_bgcolor=LIGHT_BG,
+            font=dict(color=NAVY),
+            margin=dict(l=20, r=20, t=10, b=20)
+        )
         st.plotly_chart(fig_heatmap, use_container_width=True)
 
     st.markdown("### Tabla de segmentos")
@@ -487,6 +543,7 @@ with tab3:
         st.warning("No se pudo generar la visualización geográfica con los datos disponibles.")
     else:
         fig_geo, geo_df = result
+        st.markdown(f"#### {geo_mode}")
         st.plotly_chart(fig_geo, use_container_width=True)
 
         with st.expander("Ver tabla geográfica"):
@@ -506,19 +563,22 @@ with tab4:
     dist_col1, dist_col2 = st.columns([1.1, 0.9])
 
     with dist_col1:
+        st.markdown(f"#### {numeric_var} según churn vs no churn")
         fig_box = px.box(
             compare_df,
             x="churn_label",
             y=numeric_var,
             color="churn_label",
-            title=f"{numeric_var} según churn vs no churn",
-            labels={"churn_label": "Grupo", numeric_var: numeric_var}
+            labels={"churn_label": "Grupo", numeric_var: numeric_var},
+            color_discrete_map=CHURN_COLOR_MAP
         )
-        fig_box.update_layout(title_x=0.5, showlegend=False)
+        apply_plot_style(fig_box)
+        fig_box.update_layout(showlegend=False)
         st.plotly_chart(fig_box, use_container_width=True)
 
     with dist_col2:
         hist_df = filtered_df.copy()
+        st.markdown(f"#### Distribución de {numeric_var}")
         fig_hist = px.histogram(
             hist_df,
             x=numeric_var,
@@ -526,9 +586,9 @@ with tab4:
             barmode="overlay",
             opacity=0.65,
             nbins=30,
-            title=f"Distribución de {numeric_var}"
+            color_discrete_map=CHURN_COLOR_MAP
         )
-        fig_hist.update_layout(title_x=0.5)
+        apply_plot_style(fig_hist)
         st.plotly_chart(fig_hist, use_container_width=True)
 
     if "age_group" in filtered_df.columns:
@@ -538,17 +598,18 @@ with tab4:
             .reset_index(name="churn_rate")
         )
 
+        st.markdown("#### Tasa de churn por grupo de edad")
         fig_age = px.bar(
             age_df,
             x="age_group",
             y="churn_rate",
-            title="Tasa de churn por grupo de edad",
             text="churn_rate",
             color="churn_rate",
-            color_continuous_scale="Reds"
+            color_continuous_scale=[[0, SOFT_BLUE], [1, RED]]
         )
         fig_age.update_traces(texttemplate="%{text:.2%}", textposition="outside")
-        fig_age.update_layout(title_x=0.5, xaxis_title="Grupo de edad", yaxis_title="Tasa de churn")
+        apply_plot_style(fig_age)
+        fig_age.update_layout(xaxis_title="Grupo de edad", yaxis_title="Tasa de churn")
         st.plotly_chart(fig_age, use_container_width=True)
 
     stats_df = (
