@@ -213,11 +213,8 @@ if latest_prediction is not None:
     with r3:
         st.metric("Modelo usado", "Random Forest Tuned")
 
-    st.markdown("#### Riesgo estimado")
-    st.progress(int(latest_prediction * 100))
-
-    with st.expander("Ver datos del cliente simulado"):
-        st.dataframe(latest_input_df, use_container_width=True, hide_index=True)
+    st.markdown("#### Cliente simulado")
+    st.dataframe(latest_input_df, use_container_width=True, hide_index=True)
 
 # =========================================================
 # Simulaciones acumuladas
