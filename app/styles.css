@@ -1,0 +1,37 @@
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+h1, h2, h3 {
+    letter-spacing: -0.02em;
+}
+
+[data-testid="stMetricValue"] {
+    font-weight: 700;
+}
+
+[data-testid="stMetricLabel"] {
+    font-weight: 600;
+}
+
+[data-testid="stSidebar"] {
+    border-right: 1px solid rgba(120, 120, 120, 0.15);
+}
+
+[data-testid="stHeader"] {
+    background: transparent;
+}
+
+[data-testid="collapsedControl"] {
+    display: none;
+}
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 1rem;
+}
+
+.stTabs [data-baseweb="tab"] {
+    padding-left: 0;
+    padding-right: 0;
+}
