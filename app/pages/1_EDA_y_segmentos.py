@@ -34,7 +34,7 @@ INQUIRIES_COLOR_MAP = {
 
 def apply_plot_style(fig):
     fig.update_layout(
-        title=None,
+        title_text="",
         paper_bgcolor=LIGHT_BG,
         plot_bgcolor=LIGHT_BG,
         font=dict(color=NAVY),
@@ -260,7 +260,7 @@ def plot_us_state_choropleth(data: pd.DataFrame, mode: str):
     )
 
     fig.update_layout(
-        title=None,
+        title_text="",
         paper_bgcolor=LIGHT_BG,
         plot_bgcolor=LIGHT_BG,
         margin=dict(l=20, r=20, t=10, b=20),
@@ -314,7 +314,7 @@ def plot_region_bubble_map(data: pd.DataFrame, mode: str):
     )
 
     fig.update_layout(
-        title=None,
+        title_text="",
         paper_bgcolor=LIGHT_BG,
         plot_bgcolor=LIGHT_BG,
         margin=dict(l=20, r=20, t=10, b=20)
@@ -510,7 +510,7 @@ with tab2:
         )
         fig_heatmap.update_traces(texttemplate="%{z:.2%}")
         fig_heatmap.update_layout(
-            title=None,
+            title_text="",
             paper_bgcolor=LIGHT_BG,
             plot_bgcolor=LIGHT_BG,
             font=dict(color=NAVY),
