@@ -1,312 +1,355 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
 import joblib
-from datetime import datetime
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import streamlit as st
 
-st.subheader("Simulación en vivo")
-st.markdown("""
-Esta sección permite simular nuevos clientes y estimar su riesgo de churn
-utilizando el modelo de Logistic Regression desplegado en la aplicación.
-""")
+# =========================================================
+# Configuración
+# =========================================================
+st.title("Simulación de clientes")
+st.markdown(
+    """
+Simula nuevos clientes, estima su riesgo de churn y analiza el conjunto
+de simulaciones recientes desde una perspectiva más operativa.
+"""
+)
 
-# =========================
-# Cargar modelo y base
-# =========================
-@st.cache_resource
-def load_model():
-    return joblib.load("models/logreg_model.joblib")
-
+# =========================================================
+# Carga de datos y modelo
+# =========================================================
 @st.cache_data
-def load_simulation_base():
-    return pd.read_csv("data/exports/rf_simulation_base.csv")
+def load_simulation_data():
+    df = pd.read_csv("data/processed/train_model_ready.csv").copy()
+    return df
 
-logreg_model = load_model()
-simulation_base = load_simulation_base()
 
-# =========================
-# Session state
-# =========================
-if "history" not in st.session_state:
-    st.session_state["history"] = []
+@st.cache_resource
+def load_rf_model():
+    return joblib.load("models/rf_tuned_model_compressed.joblib")
+
+
+df = load_simulation_data()
+rf_model = load_rf_model()
+
+# =========================================================
+# Utilidades
+# =========================================================
+TARGET = "churned"
+
+drop_cols_if_present = [col for col in ["y_true", "y_pred", "p_churn"] if col in df.columns]
+available_df = df.drop(columns=drop_cols_if_present, errors="ignore").copy()
+
+if TARGET in available_df.columns:
+    feature_df = available_df.drop(columns=[TARGET]).copy()
+else:
+    feature_df = available_df.copy()
+
+categorical_cols = feature_df.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+numeric_cols = feature_df.select_dtypes(include=["int64", "float64", "int32", "float32"]).columns.tolist()
+
+preferred_form_cols = [
+    "age",
+    "subscription_type",
+    "weekly_hours",
+    "song_skip_rate",
+    "num_subscription_pauses",
+    "customer_service_inquiries",
+    "average_session_length",
+    "weekly_unique_songs",
+    "weekly_songs_played",
+    "notifications_clicked",
+]
+
+form_cols = [c for c in preferred_form_cols if c in feature_df.columns]
 
 if "simulated_customers" not in st.session_state:
     st.session_state["simulated_customers"] = pd.DataFrame()
 
-if "last_prediction" not in st.session_state:
-    st.session_state["last_prediction"] = None
+def classify_risk(p):
+    if p < 0.33:
+        return "Bajo"
+    elif p < 0.66:
+        return "Medio"
+    return "Alto"
 
-# =========================
-# Funciones auxiliares
-# =========================
-def classify_risk(p_churn: float) -> str:
-    if p_churn >= 0.70:
-        return "High Risk"
-    elif p_churn >= 0.40:
-        return "Medium Risk"
-    return "Low Risk"
+def predict_with_model(model_name: str, input_df: pd.DataFrame):
+    if model_name == "Random Forest Tuned":
+        p_churn = rf_model.predict_proba(input_df)[:, 1][0]
+        return p_churn
 
-def risk_color(risk_label: str) -> str:
-    if risk_label == "High Risk":
-        return "red"
-    elif risk_label == "Medium Risk":
-        return "orange"
-    return "green"
+    tree_model = st.session_state.get("tree_model_in_situ", None)
+    if tree_model is None:
+        raise ValueError("El árbol in situ no está entrenado todavía.")
+    p_churn = tree_model.predict_proba(input_df)[:, 1][0]
+    return p_churn
 
-def update_history():
-    n_active = len(st.session_state["simulated_customers"])
-    st.session_state["history"].append({
-        "timestamp": datetime.now(),
-        "n_active": n_active
-    })
+def get_random_customer():
+    sample_row = feature_df.sample(1, random_state=np.random.randint(0, 10_000)).copy()
+    return sample_row
 
-def score_customer(model, customer_df: pd.DataFrame):
-    """
-    Devuelve probabilidad de churn y predicción binaria.
-    """
-    p_churn = model.predict_proba(customer_df)[0, 1]
-    y_pred = model.predict(customer_df)[0]
-    return p_churn, y_pred
-
-# =========================
-# KPIs
-# =========================
-st.subheader("Resumen de simulación")
-
-n_active = len(st.session_state["simulated_customers"])
-
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.metric("Clientes simulados", n_active)
-
-with col2:
-    if n_active > 0 and "p_churn" in st.session_state["simulated_customers"].columns:
-        avg_risk = st.session_state["simulated_customers"]["p_churn"].mean()
-        st.metric("Riesgo medio", f"{avg_risk:.2%}")
-    else:
-        st.metric("Riesgo medio", "N/A")
-
-with col3:
-    if n_active > 0 and "risk_label" in st.session_state["simulated_customers"].columns:
-        high_risk_n = (st.session_state["simulated_customers"]["risk_label"] == "High Risk").sum()
-        st.metric("Clientes High Risk", int(high_risk_n))
-    else:
-        st.metric("Clientes High Risk", 0)
-
-with col4:
-    if st.session_state["history"]:
-        st.metric("Eventos simulados", len(st.session_state["history"]))
-    else:
-        st.metric("Eventos simulados", 0)
-
-# =========================
-# Bloques principales
-# =========================
-tab1, tab2 = st.tabs(["Añadir desde base", "Entrada manual"])
-
-# ---------------------------------
-# TAB 1: añadir desde base
-# ---------------------------------
-with tab1:
-    st.subheader("Añadir cliente desde la base de validación")
-
-    st.write("""
-    Este botón toma un cliente de la base de validación exportada,
-    calcula su riesgo de churn y lo añade al historial de simulación.
-    """)
-
-    if st.button("Simular nuevo cliente desde base"):
-        sampled = simulation_base.sample(1).copy()
-
-        # Dejamos solo columnas útiles para scoring:
-        # quitamos columnas que no son features del modelo si existen
-        cols_to_drop = [col for col in ["y_true", "y_pred", "p_churn"] if col in sampled.columns]
-        customer_features = sampled.drop(columns=cols_to_drop).copy()
-
-        p_churn, y_pred = score_customer(logreg_model, customer_features)
-
-        sampled["timestamp_entry"] = datetime.now()
-        sampled["source"] = "validation_sample"
-        sampled["p_churn"] = p_churn
-        sampled["predicted_churn"] = y_pred
-        sampled["risk_label"] = classify_risk(p_churn)
-
-        if st.session_state["simulated_customers"].empty:
-            st.session_state["simulated_customers"] = sampled
+def build_manual_input(form_values: dict):
+    row = {}
+    for col in feature_df.columns:
+        if col in form_values:
+            row[col] = form_values[col]
         else:
-            st.session_state["simulated_customers"] = pd.concat(
-                [st.session_state["simulated_customers"], sampled],
-                ignore_index=True
-            )
+            if col in numeric_cols:
+                row[col] = float(feature_df[col].median()) if feature_df[col].notna().any() else 0
+            else:
+                mode_vals = feature_df[col].mode(dropna=True)
+                row[col] = mode_vals.iloc[0] if len(mode_vals) > 0 else "Unknown"
 
-        st.session_state["last_prediction"] = {
-            "p_churn": p_churn,
-            "risk_label": classify_risk(p_churn),
-            "source": "validation_sample"
-        }
+    return pd.DataFrame([row])
 
-        update_history()
+def add_simulation_record(source_name: str, model_name: str, input_df: pd.DataFrame, p_churn: float):
+    record = input_df.copy()
+    record["source"] = source_name
+    record["model_used"] = model_name
+    record["p_churn"] = p_churn
+    record["risk_level"] = classify_risk(p_churn)
 
-        st.success("Cliente simulado añadido correctamente.")
+    current = st.session_state["simulated_customers"]
+    st.session_state["simulated_customers"] = pd.concat([current, record], ignore_index=True)
 
-# ---------------------------------
-# TAB 2: entrada manual
-# ---------------------------------
-with tab2:
-    st.subheader("Crear cliente manualmente")
+# =========================================================
+# Selector de modelo
+# =========================================================
+st.subheader("Configuración de simulación")
 
-    st.write("""
-    Introduce algunas características del cliente para estimar su riesgo de churn.
-    """)
+model_options = ["Random Forest Tuned", "Árbol in situ"]
+selected_model = st.selectbox("Modelo para la simulación", model_options)
 
-    # OJO:
-    # Este formulario usa algunas variables base del dataset.
-    # Para que funcione, deben existir como columnas en simulation_base.
-    # Si alguna no existe en tu CSV exportado, la quitamos luego.
+if selected_model == "Árbol in situ" and st.session_state.get("tree_model_in_situ", None) is None:
+    st.warning("Primero entrena el árbol de decisión en la página de Modelos para poder usarlo aquí.")
 
-    with st.form("manual_customer_form"):
-        age = st.slider("Age", min_value=18, max_value=79, value=30)
-        weekly_hours = st.slider("Weekly hours", min_value=0, max_value=50, value=10)
-        song_skip_rate = st.slider("Song skip rate", min_value=0.0, max_value=1.0, value=0.5)
-        num_subscription_pauses = st.slider("Subscription pauses", min_value=0, max_value=5, value=0)
+# =========================================================
+# Formulario manual + cliente aleatorio
+# =========================================================
+st.subheader("Nuevo cliente")
 
-        subscription_type = st.selectbox(
-            "Subscription type",
-            sorted(simulation_base["subscription_type"].dropna().unique().tolist())
-            if "subscription_type" in simulation_base.columns else ["Free", "Premium", "Student", "Family"]
+tab_manual, tab_random = st.tabs(["Entrada manual", "Cliente aleatorio"])
+
+latest_prediction = None
+latest_input_df = None
+latest_source = None
+
+with tab_manual:
+    with st.form("manual_simulation_form"):
+        form_values = {}
+
+        col1, col2, col3 = st.columns(3)
+
+        for idx, col in enumerate(form_cols):
+            target_col = [col1, col2, col3][idx % 3]
+
+            with target_col:
+                if col in numeric_cols:
+                    min_val = float(feature_df[col].min()) if feature_df[col].notna().any() else 0.0
+                    max_val = float(feature_df[col].max()) if feature_df[col].notna().any() else 100.0
+                    median_val = float(feature_df[col].median()) if feature_df[col].notna().any() else 0.0
+
+                    form_values[col] = st.number_input(
+                        label=col,
+                        min_value=min_val,
+                        max_value=max_val,
+                        value=median_val
+                    )
+                else:
+                    options = feature_df[col].dropna().astype(str).unique().tolist()
+                    options = sorted(options)
+                    default_value = options[0] if options else "Unknown"
+
+                    form_values[col] = st.selectbox(
+                        label=col,
+                        options=options if options else ["Unknown"],
+                        index=0
+                    )
+
+        manual_submit = st.form_submit_button("Simular cliente manual")
+
+    if manual_submit:
+        try:
+            latest_input_df = build_manual_input(form_values)
+            latest_prediction = predict_with_model(selected_model, latest_input_df)
+            latest_source = "manual"
+            add_simulation_record(latest_source, selected_model, latest_input_df, latest_prediction)
+        except Exception as e:
+            st.error(f"No se pudo generar la predicción: {e}")
+
+with tab_random:
+    st.markdown("Pulsa el botón para cargar un cliente aleatorio desde el dataset procesado.")
+    random_submit = st.button("Simular cliente aleatorio")
+
+    if random_submit:
+        try:
+            latest_input_df = get_random_customer()
+            latest_prediction = predict_with_model(selected_model, latest_input_df)
+            latest_source = "pool"
+            add_simulation_record(latest_source, selected_model, latest_input_df, latest_prediction)
+        except Exception as e:
+            st.error(f"No se pudo generar la predicción: {e}")
+
+# =========================================================
+# Resultado inmediato
+# =========================================================
+if latest_prediction is not None:
+    st.subheader("Resultado de la simulación")
+
+    risk_label = classify_risk(latest_prediction)
+
+    r1, r2, r3 = st.columns(3)
+    with r1:
+        st.metric("Probabilidad de churn", f"{latest_prediction:.2%}")
+    with r2:
+        st.metric("Nivel de riesgo", risk_label)
+    with r3:
+        st.metric("Modelo usado", selected_model)
+
+    st.markdown("#### Riesgo estimado")
+    st.progress(int(latest_prediction * 100))
+
+    with st.expander("Ver datos del cliente simulado"):
+        st.dataframe(latest_input_df, use_container_width=True, hide_index=True)
+
+# =========================================================
+# Dataset acumulado de simulaciones
+# =========================================================
+sim_df = st.session_state["simulated_customers"].copy()
+
+if len(sim_df) == 0:
+    st.info("Todavía no hay simulaciones. Crea un cliente manual o usa el botón de cliente aleatorio.")
+    st.stop()
+
+# =========================================================
+# KPIs acumulados
+# =========================================================
+st.subheader("Resumen acumulado de simulaciones")
+
+n_sim = len(sim_df)
+avg_risk = sim_df["p_churn"].mean()
+high_risk_pct = (sim_df["risk_level"] == "Alto").mean()
+
+k1, k2, k3, k4 = st.columns(4)
+with k1:
+    st.metric("Clientes simulados", f"{n_sim:,}")
+with k2:
+    st.metric("Riesgo medio", f"{avg_risk:.2%}")
+with k3:
+    st.metric("% alto riesgo", f"{high_risk_pct:.2%}")
+with k4:
+    st.metric("Modelo activo", selected_model)
+
+# =========================================================
+# Visualizaciones principales
+# =========================================================
+st.subheader("Análisis del conjunto simulado")
+
+v1, v2 = st.columns(2)
+
+with v1:
+    fig_hist = px.histogram(
+        sim_df,
+        x="p_churn",
+        nbins=20,
+        title="Distribución de probabilidad de churn"
+    )
+    fig_hist.update_layout(
+        title_x=0.5,
+        xaxis_title="Probabilidad estimada de churn",
+        yaxis_title="Número de clientes"
+    )
+    st.plotly_chart(fig_hist, use_container_width=True)
+
+with v2:
+    risk_counts = sim_df["risk_level"].value_counts().reset_index()
+    risk_counts.columns = ["risk_level", "count"]
+
+    fig_risk = px.pie(
+        risk_counts,
+        names="risk_level",
+        values="count",
+        hole=0.45,
+        title="Distribución por nivel de riesgo"
+    )
+    fig_risk.update_layout(title_x=0.5)
+    st.plotly_chart(fig_risk, use_container_width=True)
+
+# =========================================================
+# Scatter interactivo
+# =========================================================
+numeric_plot_candidates = [c for c in numeric_cols if c in sim_df.columns]
+
+if len(numeric_plot_candidates) >= 2:
+    st.subheader("Exploración interactiva de clientes simulados")
+
+    s1, s2 = st.columns(2)
+    with s1:
+        x_axis = st.selectbox(
+            "Eje X",
+            numeric_plot_candidates,
+            index=0
+        )
+    with s2:
+        default_y_idx = 1 if len(numeric_plot_candidates) > 1 else 0
+        y_axis = st.selectbox(
+            "Eje Y",
+            numeric_plot_candidates,
+            index=default_y_idx
         )
 
-        customer_service_inquiries = st.selectbox(
-            "Customer service inquiries",
-            sorted(simulation_base["customer_service_inquiries"].dropna().unique().tolist())
-            if "customer_service_inquiries" in simulation_base.columns else ["Low", "Medium", "High"]
-        )
+    hover_cols = [c for c in ["subscription_type", "customer_service_inquiries", "risk_level", "p_churn"] if c in sim_df.columns]
 
-        submit_manual = st.form_submit_button("Calcular riesgo")
-
-    if submit_manual:
-        # Construimos un registro base usando medianas/modas del dataset
-        base_row = simulation_base.drop(columns=[c for c in ["y_true", "y_pred", "p_churn"] if c in simulation_base.columns]).head(1).copy()
-
-        # Rellenamos numéricas con medianas
-        for col in base_row.columns:
-            if pd.api.types.is_numeric_dtype(base_row[col]):
-                base_row[col] = simulation_base[col].median()
-
-        # Rellenamos categóricas con moda
-        for col in base_row.columns:
-            if base_row[col].dtype == "object":
-                mode_vals = simulation_base[col].mode()
-                if len(mode_vals) > 0:
-                    base_row[col] = mode_vals.iloc[0]
-
-        # Sobrescribimos con lo introducido por el usuario
-        if "age" in base_row.columns:
-            base_row["age"] = age
-        if "weekly_hours" in base_row.columns:
-            base_row["weekly_hours"] = weekly_hours
-        if "song_skip_rate" in base_row.columns:
-            base_row["song_skip_rate"] = song_skip_rate
-        if "num_subscription_pauses" in base_row.columns:
-            base_row["num_subscription_pauses"] = num_subscription_pauses
-        if "subscription_type" in base_row.columns:
-            base_row["subscription_type"] = subscription_type
-        if "customer_service_inquiries" in base_row.columns:
-            base_row["customer_service_inquiries"] = customer_service_inquiries
-
-        p_churn, y_pred = score_customer(logreg_model, base_row)
-
-        result_row = base_row.copy()
-        result_row["timestamp_entry"] = datetime.now()
-        result_row["source"] = "manual"
-        result_row["p_churn"] = p_churn
-        result_row["predicted_churn"] = y_pred
-        result_row["risk_label"] = classify_risk(p_churn)
-
-        if st.session_state["simulated_customers"].empty:
-            st.session_state["simulated_customers"] = result_row
-        else:
-            st.session_state["simulated_customers"] = pd.concat(
-                [st.session_state["simulated_customers"], result_row],
-                ignore_index=True
-            )
-
-        st.session_state["last_prediction"] = {
-            "p_churn": p_churn,
-            "risk_label": classify_risk(p_churn),
-            "source": "manual"
-        }
-
-        update_history()
-
-        st.success("Cliente manual añadido correctamente.")
-
-# =========================
-# Última predicción
-# =========================
-st.subheader("Última predicción")
-
-if st.session_state["last_prediction"] is not None:
-    last_pred = st.session_state["last_prediction"]
-    risk_label = last_pred["risk_label"]
-    p_churn = last_pred["p_churn"]
-    color = risk_color(risk_label)
-
-    st.markdown(
-        f"""
-        <div style="
-            padding: 1rem;
-            border-radius: 0.75rem;
-            border: 2px solid {color};
-            background-color: rgba(255,255,255,0.02);
-        ">
-            <h4 style="margin-bottom: 0.5rem;">Resultado del scoring</h4>
-            <p><strong>Origen:</strong> {last_pred['source']}</p>
-            <p><strong>Probabilidad estimada de churn:</strong> {p_churn:.2%}</p>
-            <p><strong>Nivel de riesgo:</strong> <span style="color:{color};"><strong>{risk_label}</strong></span></p>
-        </div>
-        """,
-        unsafe_allow_html=True
+    fig_scatter = px.scatter(
+        sim_df,
+        x=x_axis,
+        y=y_axis,
+        color="risk_level",
+        size="p_churn",
+        hover_data=hover_cols,
+        title="Perfiles simulados y riesgo estimado"
     )
-else:
-    st.info("Todavía no se ha generado ninguna predicción.")
+    fig_scatter.update_layout(title_x=0.5)
+    st.plotly_chart(fig_scatter, use_container_width=True)
 
-# =========================
-# Evolución de clientes activos
-# =========================
-st.subheader("Evolución de clientes activos")
+# =========================================================
+# Historial y top riesgo
+# =========================================================
+st.subheader("Historial de simulaciones")
 
-if len(st.session_state["history"]) > 0:
-    history_df = pd.DataFrame(st.session_state["history"])
-    st.line_chart(history_df.set_index("timestamp")["n_active"])
-else:
-    st.write("Aún no hay historial de simulación.")
+filter_option = st.selectbox(
+    "Filtrar historial",
+    ["Todos", "Solo alto riesgo", "Solo manual", "Solo pool"]
+)
 
-# =========================
-# Historial de clientes simulados
-# =========================
-st.subheader("Historial de clientes simulados")
+hist_df = sim_df.copy()
 
-if not st.session_state["simulated_customers"].empty:
-    display_cols = [col for col in [
-        "source",
-        "timestamp_entry",
-        "subscription_type",
-        "customer_service_inquiries",
-        "weekly_hours",
-        "song_skip_rate",
-        "num_subscription_pauses",
-        "age",
-        "p_churn",
-        "risk_label",
-        "predicted_churn"
-    ] if col in st.session_state["simulated_customers"].columns]
+if filter_option == "Solo alto riesgo":
+    hist_df = hist_df[hist_df["risk_level"] == "Alto"]
+elif filter_option == "Solo manual":
+    hist_df = hist_df[hist_df["source"] == "manual"]
+elif filter_option == "Solo pool":
+    hist_df = hist_df[hist_df["source"] == "pool"]
 
-    history_display = st.session_state["simulated_customers"][display_cols].sort_values(
-        "timestamp_entry", ascending=False
-    )
+hist_df = hist_df.sort_values("p_churn", ascending=False)
 
-    st.dataframe(history_display, use_container_width=True)
-else:
-    st.write("Todavía no se han simulado clientes.")
+preferred_hist_cols = [
+    "source",
+    "model_used",
+    "subscription_type",
+    "customer_service_inquiries",
+    "weekly_hours",
+    "song_skip_rate",
+    "num_subscription_pauses",
+    "p_churn",
+    "risk_level",
+]
+
+hist_cols = [c for c in preferred_hist_cols if c in hist_df.columns]
+st.dataframe(hist_df[hist_cols], use_container_width=True, hide_index=True)
+
+st.subheader("Clientes simulados con mayor riesgo")
+
+top_risk_df = sim_df.sort_values("p_churn", ascending=False).head(10)
+top_cols = [c for c in preferred_hist_cols if c in top_risk_df.columns]
+st.dataframe(top_risk_df[top_cols], use_container_width=True, hide_index=True)
