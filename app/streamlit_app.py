@@ -16,7 +16,7 @@ def load_css():
 
 load_css()
 
-st.sidebar.image("../assets/logo.png", use_container_width=True)
+st.sidebar.image("assets/logo.png", use_container_width=True)
 st.sidebar.markdown("## Churn Analytics Dashboard")
 st.sidebar.caption("Predicción y análisis de abandono de clientes")
 
