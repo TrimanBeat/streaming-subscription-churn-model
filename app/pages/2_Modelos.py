@@ -531,7 +531,7 @@ with col_left:
         text_auto=".2f",
         aspect="auto",
         color_continuous_scale="Reds",
-        title_text=""
+        title=""
     )
 
     fig_cm.update_traces(texttemplate="%{z:.2f}%")
