@@ -33,7 +33,7 @@ except ImportError:
 # =========================================================
 # Título
 # =========================================================
-st.title("Modelos Predictivos")
+st.subheader("Modelos Predictivos")
 st.markdown("""
 En esta sección se comparan los modelos ajustados del proyecto y se exploran
 sus métricas, errores y principales señales de riesgo.
@@ -531,7 +531,7 @@ with col_left:
         text_auto=".2f",
         aspect="auto",
         color_continuous_scale="Reds",
-        title=f"Matriz de confusión normalizada - {selected_model}"
+        title_text=""
     )
 
     fig_cm.update_traces(texttemplate="%{z:.2f}%")
