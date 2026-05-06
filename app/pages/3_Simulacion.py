@@ -7,7 +7,7 @@ import streamlit as st
 # =========================================================
 # Configuración
 # =========================================================
-st.title("Simulación de clientes")
+st.subheader("Simulación de clientes")
 st.markdown(
     """
 Simula nuevos clientes y estima su riesgo de churn con el modelo final del proyecto.

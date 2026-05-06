@@ -43,7 +43,6 @@ sus métricas, errores y principales señales de riesgo.
 # Carga de outputs
 # =========================================================
 @st.cache_data
-@st.cache_data
 def load_model_outputs():
     tuned_model_comparison = pd.read_csv("data/exports/tuned_model_comparison.csv")
     tuned_model_comparison_long = pd.read_csv("data/exports/tuned_model_comparison_long.csv")
