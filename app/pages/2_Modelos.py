@@ -556,7 +556,7 @@ with col_right:
             x="importance",
             y=feature_col,
             orientation="h",
-            title="Top 15 variables más importantes",
+            title=" ",
             text="importance"
         )
 
@@ -582,7 +582,7 @@ with col_right:
             x="coefficient",
             y=feature_col,
             orientation="h",
-            title="Coeficientes más relevantes",
+            title=" ",
             text="coefficient"
         )
 
@@ -662,7 +662,7 @@ if selected_model == "Deep Neural Network":
         current_preds,
         x="p_churn",
         nbins=30,
-        title="Distribución de p_churn en validación"
+        title=" "
     )
 
     fig_dnn_probs.update_layout(
@@ -826,7 +826,7 @@ if st.session_state["tree_model_in_situ"] is not None:
             x="importance",
             y="feature_clean",
             orientation="h",
-            title="Top variables del árbol in situ",
+            title=" ",
             text="importance"
         )
 

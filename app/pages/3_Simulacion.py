@@ -263,7 +263,7 @@ fig_risk = px.pie(
     names="risk_level",
     values="count",
     hole=0.5,
-    title="Clientes simulados por nivel de riesgo",
+    title=" ",
     color="risk_level",
     color_discrete_map={
         "Bajo": "#2E8B57",
