@@ -458,7 +458,7 @@ fig_metrics = px.bar(
     y="score",
     color="model",
     barmode="group",
-    title="Comparación de modelos tuneados",
+    title=" ",
     text="score"
 )
 
