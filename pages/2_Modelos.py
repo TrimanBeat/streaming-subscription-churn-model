@@ -1,11 +1,19 @@
-import os
-import time
+from __future__ import annotations
 
-import streamlit as st
+from pathlib import Path
+import sys
+import os
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+SRC_DIR = ROOT_DIR / "src"
+
+if str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
+
+import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.express as px
-import matplotlib.pyplot as plt
-import ast
+import streamlit as st
 
 from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
@@ -21,57 +29,58 @@ from sklearn.metrics import (
     roc_auc_score
 )
 
-# =========================================================
-# Gemini import opcional
-# =========================================================
+from churn_project.data_loader import load_export_csv, load_processed_data
+from churn_project.modeling_utils import (
+    build_dnn_architecture_table,
+    clean_feature_names,
+    filter_risk_table,
+    get_dnn_config,
+    select_model_bundle,
+)
+from churn_project.summaries import metric_columns_for_display
+
 try:
     from google import genai
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
 
-# =========================================================
-# Título
-# =========================================================
-st.subheader("Modelos Predictivos")
-st.markdown("""
-En esta sección se comparan los modelos ajustados del proyecto y se exploran
-sus métricas, errores y principales señales de riesgo.
-""")
 
-# =========================================================
-# Carga de outputs
-# =========================================================
+st.title("Modelos Predictivos")
+st.caption("Comparación de modelos tuneados, interpretación y análisis de riesgo.")
+st.markdown("---")
+
+
 @st.cache_data
 def load_model_outputs():
-    tuned_model_comparison = pd.read_csv("data/exports/tuned_model_comparison.csv")
-    tuned_model_comparison_long = pd.read_csv("data/exports/tuned_model_comparison_long.csv")
-    tuned_model_best_params = pd.read_csv("data/exports/tuned_model_best_params.csv")
+    tuned_model_comparison = load_export_csv("data/exports/tuned_model_comparison.csv")
+    tuned_model_comparison_long = load_export_csv("data/exports/tuned_model_comparison_long.csv")
+    tuned_model_best_params = load_export_csv("data/exports/tuned_model_best_params.csv")
 
-    logreg_tuned_metrics = pd.read_csv("data/exports/logreg_tuned_metrics.csv")
-    logreg_tuned_preds = pd.read_csv("data/exports/logreg_tuned_validation_predictions.csv")
-    logreg_tuned_cm_pct = pd.read_csv(
+    logreg_tuned_metrics = load_export_csv("data/exports/logreg_tuned_metrics.csv")
+    logreg_tuned_preds = load_export_csv("data/exports/logreg_tuned_validation_predictions.csv")
+    logreg_tuned_cm_pct = load_export_csv(
         "data/exports/logreg_tuned_confusion_matrix_percentage.csv",
         index_col=0
     )
-    logreg_tuned_coefficients = pd.read_csv("data/exports/logreg_tuned_coefficients.csv")
+    logreg_tuned_coefficients = load_export_csv("data/exports/logreg_tuned_coefficients.csv")
 
-    rf_tuned_metrics = pd.read_csv("data/exports/rf_tuned_metrics.csv")
-    rf_tuned_preds = pd.read_csv("data/exports/rf_tuned_validation_predictions.csv")
-    rf_tuned_cm_pct = pd.read_csv(
+    rf_tuned_metrics = load_export_csv("data/exports/rf_tuned_metrics.csv")
+    rf_tuned_preds = load_export_csv("data/exports/rf_tuned_validation_predictions.csv")
+    rf_tuned_cm_pct = load_export_csv(
         "data/exports/rf_tuned_confusion_matrix_percentage.csv",
         index_col=0
     )
-    rf_tuned_feature_importance = pd.read_csv("data/exports/rf_tuned_feature_importance.csv")
+    rf_tuned_feature_importance = load_export_csv("data/exports/rf_tuned_feature_importance.csv")
 
-    dnn_tuned_metrics = pd.read_csv("data/exports/dnn_tuned_metrics.csv")
-    dnn_tuned_preds = pd.read_csv("data/exports/dnn_tuned_validation_predictions.csv")
-    dnn_tuned_cm_pct = pd.read_csv(
+    dnn_tuned_metrics = load_export_csv("data/exports/dnn_tuned_metrics.csv")
+    dnn_tuned_preds = load_export_csv("data/exports/dnn_tuned_validation_predictions.csv")
+    dnn_tuned_cm_pct = load_export_csv(
         "data/exports/dnn_tuned_confusion_matrix_percentage.csv",
         index_col=0
     )
 
-    train_model_ready = pd.read_csv("data/processed/train_model_ready.csv")
+    train_model_ready = load_processed_data("data/processed/train_model_ready.csv")
 
     return (
         tuned_model_comparison,
@@ -110,16 +119,13 @@ def load_model_outputs():
     train_model_ready,
 ) = load_model_outputs()
 
-# =========================================================
-# Funciones auxiliares - Gemini
-# =========================================================
+
 def get_gemini_api_key():
     try:
         if "GEMINI_API_KEY" in st.secrets:
             return st.secrets["GEMINI_API_KEY"]
     except Exception:
         pass
-
     return os.getenv("GEMINI_API_KEY")
 
 
@@ -144,14 +150,10 @@ Rendimiento:
     if selected_model == "Random Forest" and rf_feature_importance is not None:
         feature_col = "feature_clean" if "feature_clean" in rf_feature_importance.columns else "feature"
         top_df = rf_feature_importance[[feature_col, "importance"]].head(top_n).copy()
-
-        lines = []
-        for _, row in top_df.iterrows():
-            lines.append(f"- {row[feature_col]}: {row['importance']:.4f}")
-
+        lines = [f"- {row[feature_col]}: {row['importance']:.4f}" for _, row in top_df.iterrows()]
         features_text = "\n".join(lines)
 
-        prompt = f"""
+        return f"""
 Eres un asistente que ayuda a explicar un dashboard de predicción de churn a una audiencia universitaria.
 
 {metrics_text}
@@ -166,37 +168,29 @@ Escribe la respuesta en español y con este formato exacto en Markdown:
 
 ### Variables clave
 - 3 o 4 viñetas explicando los factores más importantes
-- agrupa las ideas en bloques si es posible, como engagement, fricción y tipo de suscripción
+- agrupa las ideas si es posible
 
 ### Nota de interpretación
-- 1 viñeta breve aclarando que la importancia de variables es predictiva y no causal
-
-Instrucciones:
-- No escribas la respuesta en un solo párrafo
-- Usa títulos y viñetas
-- Sé claro, breve y presentable
-- No inventes relaciones no presentes en la tabla
+- 1 viñeta breve aclarando que la importancia es predictiva y no causal
 """
-        return prompt
 
     if selected_model == "Logistic Regression" and logreg_coefficients is not None:
         coef_col = "feature_clean" if "feature_clean" in logreg_coefficients.columns else "feature"
-
         pos_df = logreg_coefficients.sort_values("coefficient", ascending=False).head(6)
         neg_df = logreg_coefficients.sort_values("coefficient", ascending=True).head(6)
 
         pos_lines = [f"- {row[coef_col]}: {row['coefficient']:.4f}" for _, row in pos_df.iterrows()]
         neg_lines = [f"- {row[coef_col]}: {row['coefficient']:.4f}" for _, row in neg_df.iterrows()]
 
-        prompt = f"""
+        return f"""
 Eres un asistente que ayuda a explicar un dashboard de predicción de churn a una audiencia universitaria.
 
 {metrics_text}
 
-Coeficientes positivos más relevantes:
+Coeficientes positivos:
 {chr(10).join(pos_lines)}
 
-Coeficientes negativos más relevantes:
+Coeficientes negativos:
 {chr(10).join(neg_lines)}
 
 Escribe la respuesta en español y con este formato exacto en Markdown:
@@ -205,33 +199,18 @@ Escribe la respuesta en español y con este formato exacto en Markdown:
 2 o 3 frases breves sobre el rendimiento del modelo.
 
 ### Lectura de coeficientes
-- 2 o 3 viñetas explicando qué variables parecen empujar hacia churn
-- 2 o 3 viñetas explicando qué variables parecen asociarse con menor riesgo
-- aclara que los coeficientes dependen del resto de variables del modelo
+- 2 o 3 viñetas sobre variables que empujan hacia churn
+- 2 o 3 viñetas sobre variables asociadas a menor riesgo
 
 ### Nota final
-- 1 viñeta breve sobre el carácter interpretable de la regresión logística
-
-Instrucciones:
-- No escribas la respuesta en un solo párrafo
-- Usa títulos y viñetas
-- Sé claro, breve y presentable
-- No inventes relaciones no presentes en la tabla
+- 1 viñeta breve sobre la interpretabilidad de la regresión logística
 """
-        return prompt
 
     if selected_model == "Deep Neural Network":
-        prompt = f"""
+        return f"""
 Eres un asistente que ayuda a explicar un dashboard de predicción de churn a una audiencia universitaria.
 
-Modelo seleccionado: {selected_model}
-
-Rendimiento:
-- Accuracy: {current_metrics['accuracy']:.3f}
-- Precision: {current_metrics['precision']:.3f}
-- Recall: {current_metrics['recall']:.3f}
-- F1-score: {current_metrics['f1']:.3f}
-- ROC AUC: {current_metrics['roc_auc']:.3f}
+{metrics_text}
 
 Escribe la respuesta en español y con este formato exacto en Markdown:
 
@@ -244,16 +223,10 @@ Escribe la respuesta en español y con este formato exacto en Markdown:
 - 1 viñeta explicando por qué sigue siendo útil compararla
 
 ### Nota final
-- 1 frase breve indicando si el modelo mejora o no a los modelos clásicos del proyecto
-
-Instrucciones:
-- No escribas la respuesta en un solo párrafo
-- Usa títulos y viñetas
-- Sé claro, breve y presentable
+- 1 frase breve indicando si mejora o no a los modelos clásicos
 """
-        return prompt
 
-    prompt = f"""
+    return f"""
 Eres un asistente que ayuda a explicar un dashboard de predicción de churn a una audiencia universitaria.
 
 {metrics_text}
@@ -269,29 +242,17 @@ Escribe la respuesta en español y con este formato exacto en Markdown:
 
 ### Nota final
 - 1 frase breve sobre si el modelo parece adecuado para una demo o despliegue ligero
-
-Instrucciones:
-- No escribas la respuesta en un solo párrafo
-- Usa títulos y viñetas
-- Sé claro, breve y presentable
 """
-    return prompt
-
-    
 
 
 def generate_gemini_summary(prompt: str) -> str:
     api_key = get_gemini_api_key()
 
     if not api_key:
-        return (
-            "No se encontró ninguna API key de Gemini. "
-            "En local usa una variable de entorno GEMINI_API_KEY o crea un secrets.toml. "
-            "En Streamlit Cloud añádela en la sección Secrets."
-        )
+        return "No se encontró ninguna API key de Gemini."
 
     if not GEMINI_AVAILABLE:
-        return "El paquete google-genai no está instalado en este entorno."
+        return "El paquete google-genai no está instalado."
 
     try:
         client = genai.Client(api_key=api_key)
@@ -302,34 +263,8 @@ def generate_gemini_summary(prompt: str) -> str:
         return response.text
     except Exception as e:
         return f"Error al generar el resumen con Gemini: {e}"
-    
-    
-    
-# =========================================================
-# Funciones auxiliares - Gráfico DNN
-# =========================================================    
-    
-def get_dnn_config(best_params_df: pd.DataFrame):
-    dnn_row = best_params_df[best_params_df["model"] == "DNN Tuned"].iloc[0]
 
-    hidden_units_raw = dnn_row["classifier__model__hidden_units"]
-    if isinstance(hidden_units_raw, str):
-        hidden_units = ast.literal_eval(hidden_units_raw)
-    else:
-        hidden_units = hidden_units_raw
 
-    config = {
-        "hidden_units": hidden_units,
-        "dropout_rate": float(dnn_row["classifier__model__dropout_rate"]),
-        "learning_rate": float(dnn_row["classifier__model__learning_rate"]),
-        "batch_size": int(dnn_row["classifier__batch_size"]),
-        "epochs": int(dnn_row["classifier__epochs"]),
-    }
-    return config
-
-# =========================================================
-# Funciones auxiliares - Árbol in situ
-# =========================================================
 def build_tree_preprocessor(X: pd.DataFrame):
     numeric_features = X.select_dtypes(include=["int64", "float64", "int32", "float32"]).columns.tolist()
     categorical_features = X.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
@@ -343,12 +278,10 @@ def build_tree_preprocessor(X: pd.DataFrame):
         ("onehot", OneHotEncoder(handle_unknown="ignore"))
     ])
 
-    preprocessor = ColumnTransformer(transformers=[
+    return ColumnTransformer(transformers=[
         ("num", numeric_transformer, numeric_features),
         ("cat", categorical_transformer, categorical_features)
     ])
-
-    return preprocessor
 
 
 def train_decision_tree_in_situ(
@@ -360,7 +293,6 @@ def train_decision_tree_in_situ(
     random_state: int = 42
 ):
     df = df.copy()
-
     drop_cols = [col for col in ["y_true", "y_pred", "p_churn"] if col in df.columns]
     if drop_cols:
         df = df.drop(columns=drop_cols)
@@ -380,11 +312,7 @@ def train_decision_tree_in_situ(
     ])
 
     X_train, X_valid, y_train, y_valid = train_test_split(
-        X,
-        y,
-        test_size=test_size,
-        stratify=y,
-        random_state=random_state
+        X, y, test_size=test_size, stratify=y, random_state=random_state
     )
 
     tree_model.fit(X_train, y_train)
@@ -413,7 +341,6 @@ def train_decision_tree_in_situ(
 
 def build_tree_figure(tree_model, feature_names, max_depth_display=3):
     clf = tree_model.named_steps["classifier"]
-
     fig, ax = plt.subplots(figsize=(20, 10))
     plot_tree(
         clf,
@@ -428,13 +355,10 @@ def build_tree_figure(tree_model, feature_names, max_depth_display=3):
     plt.tight_layout()
     return fig
 
-# =========================================================
-# Comparación global
-# =========================================================
+
 st.subheader("Comparación global de modelos")
 
 comparison_long = tuned_model_comparison_long.copy()
-
 metric_order = ["accuracy", "precision", "recall", "f1", "roc_auc"]
 comparison_long["metric"] = pd.Categorical(
     comparison_long["metric"],
@@ -448,31 +372,32 @@ comparison_long["model"] = pd.Categorical(
     categories=model_order,
     ordered=True
 )
-
 comparison_long = comparison_long.sort_values(["metric", "model"])
 
+st.markdown("#### Comparación global de modelos tuneados")
 fig_metrics = px.bar(
     comparison_long,
     x="metric",
     y="score",
     color="model",
     barmode="group",
-    title=" ",
-    text="score"
+    text="score",
+    color_discrete_map={
+        "LogReg Tuned": "#0F172A",
+        "RF Tuned": "#B42318",
+        "DNN Tuned": "#2563EB",
+    }
 )
-
 fig_metrics.update_traces(texttemplate="%{text:.3f}", textposition="outside")
 fig_metrics.update_layout(
-    title_x=0.5,
+    title_text="",
     xaxis_title="Métrica",
-    yaxis_title="Score"
+    yaxis_title="Score",
+    legend_title="Modelo"
 )
-
 st.plotly_chart(fig_metrics, use_container_width=True)
 
-# =========================================================
-# Selector de modelo
-# =========================================================
+
 st.subheader("Selección de modelo")
 
 selected_model = st.selectbox(
@@ -480,74 +405,59 @@ selected_model = st.selectbox(
     ["Logistic Regression", "Random Forest", "Deep Neural Network"]
 )
 
-if selected_model == "Logistic Regression":
-    current_metrics = logreg_tuned_metrics.iloc[0]
-    current_preds = logreg_tuned_preds
-    current_cm = logreg_tuned_cm_pct
-    show_feature_visual = "coefficients"
+current_metrics, current_preds, current_cm, show_feature_visual = select_model_bundle(
+    selected_model,
+    logreg_tuned_metrics,
+    logreg_tuned_preds,
+    logreg_tuned_cm_pct,
+    rf_tuned_metrics,
+    rf_tuned_preds,
+    rf_tuned_cm_pct,
+    dnn_tuned_metrics,
+    dnn_tuned_preds,
+    dnn_tuned_cm_pct,
+)
 
-elif selected_model == "Random Forest":
-    current_metrics = rf_tuned_metrics.iloc[0]
-    current_preds = rf_tuned_preds
-    current_cm = rf_tuned_cm_pct
-    show_feature_visual = "importance"
-
-else:
-    current_metrics = dnn_tuned_metrics.iloc[0]
-    current_preds = dnn_tuned_preds
-    current_cm = dnn_tuned_cm_pct
-    show_feature_visual = "dnn"
-
-# =========================================================
-# Resumen del modelo seleccionado
-# =========================================================
 st.subheader("Resumen del modelo seleccionado")
 
 col1, col2, col3, col4 = st.columns(4)
-
 with col1:
     st.metric("Accuracy", f"{current_metrics['accuracy']:.3f}")
-
 with col2:
     st.metric("Precision", f"{current_metrics['precision']:.3f}")
-
 with col3:
     st.metric("Recall", f"{current_metrics['recall']:.3f}")
-
 with col4:
     st.metric("ROC AUC", f"{current_metrics['roc_auc']:.3f}")
 
-# =========================================================
-# Matriz + visualización del modelo
-# =========================================================
 col_left, col_right = st.columns([1, 1])
 
 with col_left:
-    st.subheader(f"Matriz de confusión (%) - {selected_model}")
-
+    st.markdown(f"#### Matriz de confusión (%) - {selected_model}")
     fig_cm = px.imshow(
         current_cm,
         text_auto=".2f",
         aspect="auto",
-        color_continuous_scale="Reds",
-        title=" "
+        color_continuous_scale="Reds"
     )
-
     fig_cm.update_traces(texttemplate="%{z:.2f}%")
     fig_cm.update_layout(
-        title_x=0.5,
+        title_text="",
         xaxis_title="Clase predicha",
         yaxis_title="Clase real"
     )
-
     st.plotly_chart(fig_cm, use_container_width=True)
 
 with col_right:
-    st.subheader("Interpretación del modelo")
+    st.markdown("#### Interpretación del modelo")
 
     if show_feature_visual == "importance":
         top_features = rf_tuned_feature_importance.head(15).copy()
         feature_col = "feature_clean" if "feature_clean" in top_features.columns else "feature"
+        if feature_col == "feature":
+            top_features["feature_clean"] = clean_feature_names(top_features["feature"])
+            feature_col = "feature_clean"
+
         top_features = top_features.sort_values("importance", ascending=True)
 
         fig_importance = px.bar(
@@ -555,22 +465,23 @@ with col_right:
             x="importance",
             y=feature_col,
             orientation="h",
-            title=" ",
-            text="importance"
+            text="importance",
+            color_discrete_sequence=["#B42318"]
         )
-
         fig_importance.update_traces(texttemplate="%{text:.3f}", textposition="outside")
         fig_importance.update_layout(
-            title_x=0.5,
+            title_text="",
             xaxis_title="Importancia",
             yaxis_title="Variable"
         )
-
         st.plotly_chart(fig_importance, use_container_width=True)
 
     elif show_feature_visual == "coefficients":
         coef_df = logreg_tuned_coefficients.copy()
         feature_col = "feature_clean" if "feature_clean" in coef_df.columns else "feature"
+        if feature_col == "feature":
+            coef_df["feature_clean"] = clean_feature_names(coef_df["feature"])
+            feature_col = "feature_clean"
 
         top_pos = coef_df.sort_values("coefficient", ascending=False).head(8)
         top_neg = coef_df.sort_values("coefficient", ascending=True).head(8)
@@ -581,45 +492,27 @@ with col_right:
             x="coefficient",
             y=feature_col,
             orientation="h",
-            title=" ",
-            text="coefficient"
+            text="coefficient",
+            color="coefficient",
+            color_continuous_scale=["#B42318", "#F5F5F5", "#0F172A"]
         )
-
         fig_coef.update_traces(texttemplate="%{text:.3f}", textposition="outside")
         fig_coef.update_layout(
-            title_x=0.5,
+            title_text="",
             xaxis_title="Coeficiente",
-            yaxis_title="Variable"
+            yaxis_title="Variable",
+            coloraxis_showscale=False
         )
-
         st.plotly_chart(fig_coef, use_container_width=True)
 
     else:
         dnn_config = get_dnn_config(tuned_model_best_params)
 
-        st.markdown("#### Arquitectura de la red")
-
-        arch_rows = [{"Capa": "Entrada", "Configuración": "Features preprocesadas"}]
-
-        for i, units in enumerate(dnn_config["hidden_units"], start=1):
-            arch_rows.append({
-                "Capa": f"Dense {i}",
-                "Configuración": f"{units} neuronas + ReLU"
-            })
-            arch_rows.append({
-                "Capa": f"Dropout {i}",
-                "Configuración": f"rate = {dnn_config['dropout_rate']}"
-            })
-
-        arch_rows.append({
-            "Capa": "Salida",
-            "Configuración": "1 neurona + Sigmoid"
-        })
-
-        arch_df = pd.DataFrame(arch_rows)
+        st.markdown("##### Arquitectura de la red")
+        arch_df = build_dnn_architecture_table(dnn_config)
         st.dataframe(arch_df, use_container_width=True, hide_index=True)
 
-        st.markdown("#### Mejores hiperparámetros")
+        st.markdown("##### Mejores hiperparámetros")
         dnn_config_df = pd.DataFrame({
             "Parámetro": ["Hidden units", "Dropout rate", "Learning rate", "Batch size", "Epochs"],
             "Valor": [
@@ -632,12 +525,22 @@ with col_right:
         })
         st.dataframe(dnn_config_df, use_container_width=True, hide_index=True)
 
-# =========================================================
-# Clientes activos con mayor riesgo
-# =========================================================
+
 st.subheader(f"Clientes activos con mayor riesgo estimado - {selected_model}")
 
-show_cols = [col for col in [
+risk_filter = st.selectbox(
+    "Filtrar por nivel de riesgo",
+    ["Todos", "Bajo", "Medio", "Alto"],
+    key="risk_filter_modelos"
+)
+
+risk_table = filter_risk_table(
+    current_preds,
+    risk_level=risk_filter,
+    active_only=True
+)
+
+preferred_cols = [
     "subscription_type",
     "customer_service_inquiries",
     "weekly_hours",
@@ -645,50 +548,40 @@ show_cols = [col for col in [
     "num_subscription_pauses",
     "age",
     "p_churn",
+    "risk_level",
     "y_true",
-    "y_pred"
-] if col in current_preds.columns]
+    "y_pred",
+]
 
-current_preds_filtered = current_preds[current_preds["y_true"] == 0].copy()
-top_risk = current_preds_filtered.sort_values("p_churn", ascending=False)[show_cols].head(20)
-
-st.dataframe(top_risk, use_container_width=True)
+show_cols = metric_columns_for_display(risk_table, preferred_cols)
+st.dataframe(risk_table[show_cols].head(20), use_container_width=True)
 
 if selected_model == "Deep Neural Network":
-    st.subheader("Distribución de probabilidades predichas - DNN")
-
+    st.markdown("#### Distribución de probabilidades predichas - DNN")
     fig_dnn_probs = px.histogram(
         current_preds,
         x="p_churn",
         nbins=30,
-        title=" "
+        color_discrete_sequence=["#2563EB"]
     )
-
     fig_dnn_probs.update_layout(
-        title_x=0.5,
+        title_text="",
         xaxis_title="Probabilidad estimada de churn",
         yaxis_title="Número de clientes"
     )
-
     st.plotly_chart(fig_dnn_probs, use_container_width=True)
 
-# =========================================================
-# Gemini
-# =========================================================
-st.subheader("Interpretación asistida")
 
+st.subheader("Interpretación asistida")
 st.caption("Este bloque genera un resumen automático del modelo seleccionado.")
 
 summary_key = f"llm_summary_{selected_model}"
-
 if summary_key not in st.session_state:
     st.session_state[summary_key] = ""
 
 col_a, col_b = st.columns([1, 3])
-
 with col_a:
     generate_clicked = st.button(f"Generar resumen - {selected_model}")
-
 with col_b:
     st.write("Usa Gemini para generar una explicación breve del modelo seleccionado.")
 
@@ -709,9 +602,7 @@ if st.session_state[summary_key]:
 else:
     st.info("Pulsa el botón para generar una interpretación automática.")
 
-# =========================================================
-# Árbol in situ
-# =========================================================
+
 st.markdown("---")
 st.subheader("Entrenamiento in situ: Árbol de decisión")
 st.caption(
@@ -722,23 +613,9 @@ st.caption(
 train_col1, train_col2, train_col3 = st.columns(3)
 
 with train_col1:
-    max_depth_in_situ = st.slider(
-        "max_depth",
-        min_value=2,
-        max_value=8,
-        value=4,
-        step=1
-    )
-
+    max_depth_in_situ = st.slider("max_depth", min_value=2, max_value=8, value=4, step=1)
 with train_col2:
-    min_samples_split_in_situ = st.slider(
-        "min_samples_split",
-        min_value=2,
-        max_value=50,
-        value=20,
-        step=2
-    )
-
+    min_samples_split_in_situ = st.slider("min_samples_split", min_value=2, max_value=50, value=20, step=2)
 with train_col3:
     train_clicked = st.button("Entrenar árbol in situ")
 
@@ -749,16 +626,6 @@ if "tree_model_in_situ" not in st.session_state:
     st.session_state["tree_feature_names_in_situ"] = None
 
 if train_clicked:
-    progress_text = st.empty()
-    progress_bar = st.progress(0)
-
-    progress_text.write("Preparando datos...")
-    progress_bar.progress(20)
-    time.sleep(0.2)
-
-    progress_text.write("Entrenando árbol de decisión...")
-    progress_bar.progress(50)
-
     tree_model_in_situ, tree_metrics_in_situ, tree_importance_in_situ, tree_feature_names_in_situ = train_decision_tree_in_situ(
         train_model_ready,
         target="churned",
@@ -766,27 +633,15 @@ if train_clicked:
         min_samples_split=min_samples_split_in_situ
     )
 
-    progress_text.write("Calculando métricas e importancias...")
-    progress_bar.progress(80)
-    time.sleep(0.2)
-
     st.session_state["tree_model_in_situ"] = tree_model_in_situ
     st.session_state["tree_metrics_in_situ"] = tree_metrics_in_situ
     st.session_state["tree_importance_in_situ"] = tree_importance_in_situ
     st.session_state["tree_feature_names_in_situ"] = tree_feature_names_in_situ
 
-    progress_text.write("Entrenamiento completado")
-    progress_bar.progress(100)
-    time.sleep(0.3)
-
-    progress_bar.empty()
-    progress_text.empty()
-
 if st.session_state["tree_model_in_situ"] is not None:
     st.success("Modelo entrenado correctamente")
 
     metrics = st.session_state["tree_metrics_in_situ"]
-
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
         st.metric("Accuracy", f"{metrics['accuracy']:.3f}")
@@ -813,24 +668,22 @@ if st.session_state["tree_model_in_situ"] is not None:
     with viz_col2:
         st.markdown("#### Importancia de variables")
         tree_importance_df = st.session_state["tree_importance_in_situ"].head(10).copy()
-        tree_importance_df["feature_clean"] = (
-            tree_importance_df["feature"]
-            .str.replace("num__", "", regex=False)
-            .str.replace("cat__", "", regex=False)
-            .str.replace("_", " ", regex=False)
-        )
+        tree_importance_df["feature_clean"] = clean_feature_names(tree_importance_df["feature"])
 
         fig_tree_imp = px.bar(
             tree_importance_df.sort_values("importance", ascending=True),
             x="importance",
             y="feature_clean",
             orientation="h",
-            title=" ",
-            text="importance"
+            text="importance",
+            color_discrete_sequence=["#0F172A"]
         )
-
         fig_tree_imp.update_traces(texttemplate="%{text:.3f}", textposition="outside")
-        fig_tree_imp.update_layout(title_x=0.5)
+        fig_tree_imp.update_layout(
+            title_text="",
+            xaxis_title="Importancia",
+            yaxis_title="Variable"
+        )
         st.plotly_chart(fig_tree_imp, use_container_width=True)
 
 else:
