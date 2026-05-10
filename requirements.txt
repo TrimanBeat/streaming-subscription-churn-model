@@ -1,10 +1,11 @@
 streamlit
 pandas
-plotly
+numpy
 scikit-learn
-joblib
-google-genai
 matplotlib
-seaborn
-nbformat
-ipython
+plotly
+joblib
+tensorflow
+scikeras
+google-genai
+graphviz

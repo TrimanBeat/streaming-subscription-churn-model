@@ -3,7 +3,7 @@ import streamlit as st
 
 st.set_page_config(
     page_title="Churn Analytics Dashboard",
-    page_icon="../assets/logo.png",
+    page_icon="assets/logo.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -30,26 +30,21 @@ c1, c2, c3 = st.columns(3)
 with c1:
     st.markdown("### Problema")
     st.write(
-        "Identificar clientes con mayor probabilidad de abandono y entender qué variables "
-        "están más relacionadas con ese comportamiento."
+        "Identificar clientes con mayor probabilidad de abandono y entender qué variables están más relacionadas con ese comportamiento."
     )
 
 with c2:
     st.markdown("### Enfoque")
     st.write(
-        "El proyecto combina análisis exploratorio, feature engineering, comparación de modelos "
-        "y despliegue en una app interactiva."
+        "El proyecto combina análisis exploratorio, feature engineering, comparación de modelos tuneados y despliegue en una app interactiva."
     )
 
 with c3:
     st.markdown("### Qué incluye")
     st.write(
-        "EDA interactivo, comparación de modelos, simulación de clientes y visualización de resultados "
-        "para apoyar decisiones de negocio."
+        "EDA interactivo, comparación de modelos, simulación de clientes y visualización de resultados para apoyar decisiones de negocio."
     )
 
 st.markdown("---")
 st.markdown("### Navegación")
-st.write(
-    "Usa el menú lateral para explorar las secciones de EDA, modelos y simulación."
-)
+st.write("Usa el menú lateral para explorar las secciones de EDA, modelos y simulación.")
