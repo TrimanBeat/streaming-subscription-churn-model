@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import dask.dataframe as dd
 
 
 STATE_NAME_TO_CODE = {
@@ -13,7 +14,7 @@ STATE_NAME_TO_CODE = {
     "Maine": "ME",
     "Montana": "MT",
     "Nebraska": "NE",
-    "Nebrasksa": "NE",  # typo presente en algunos datos
+    "Nebrasksa": "NE",
     "New Jersey": "NJ",
     "New York": "NY",
     "North Carolina": "NC",
@@ -50,6 +51,39 @@ STATE_TO_REGION = {
 }
 
 
+def add_features_dask(ddf: dd.DataFrame) -> dd.DataFrame:
+    """Features sencillas para carga con Dask en la app."""
+    cols = set(ddf.columns)
+
+    if {"weekly_hours", "song_skip_rate"}.issubset(cols):
+        ddf["engagement_index"] = ddf["weekly_hours"] * (1 - ddf["song_skip_rate"])
+
+    if "subscription_type" in cols:
+        ddf["is_free_plan"] = (ddf["subscription_type"] == "Free").astype("int64")
+
+    if "customer_service_inquiries" in cols:
+        ddf["is_high_inquiries"] = (ddf["customer_service_inquiries"] == "High").astype("int64")
+
+    return ddf
+
+
+def add_features_pandas(df: pd.DataFrame) -> pd.DataFrame:
+    """Versión pandas de features sencillas reutilizables."""
+    df = df.copy()
+    cols = set(df.columns)
+
+    if {"weekly_hours", "song_skip_rate"}.issubset(cols):
+        df["engagement_index"] = df["weekly_hours"] * (1 - df["song_skip_rate"])
+
+    if "subscription_type" in cols:
+        df["is_free_plan"] = (df["subscription_type"] == "Free").astype("int64")
+
+    if "customer_service_inquiries" in cols:
+        df["is_high_inquiries"] = (df["customer_service_inquiries"] == "High").astype("int64")
+
+    return df
+
+
 def clean_streaming_churn_df(df: pd.DataFrame) -> pd.DataFrame:
     """Limpieza y variables derivadas base del proyecto."""
     df = df.copy()
@@ -73,11 +107,9 @@ def add_model_ready_features(df: pd.DataFrame) -> pd.DataFrame:
     """Añade exactamente las variables derivadas que aparecen en train_model_ready.csv."""
     df = df.copy()
 
-    # Corregir typo en location antes de mapear
     if "location" in df.columns:
         df["location"] = df["location"].replace({"Nebrasksa": "Nebraska"})
 
-    # age_group
     if "age" in df.columns:
         df["age_group"] = pd.cut(
             df["age"],
@@ -86,7 +118,6 @@ def add_model_ready_features(df: pd.DataFrame) -> pd.DataFrame:
             include_lowest=True,
         )
 
-    # weekly_hours_bin
     if "weekly_hours" in df.columns:
         df["weekly_hours_bin"] = pd.cut(
             df["weekly_hours"],
@@ -96,7 +127,6 @@ def add_model_ready_features(df: pd.DataFrame) -> pd.DataFrame:
             include_lowest=True,
         )
 
-    # skip_rate_bin
     if "song_skip_rate" in df.columns:
         df["skip_rate_bin"] = pd.cut(
             df["song_skip_rate"],
@@ -106,7 +136,6 @@ def add_model_ready_features(df: pd.DataFrame) -> pd.DataFrame:
             include_lowest=True,
         )
 
-    # state_code / region
     if "location" in df.columns:
         location_clean = df["location"].astype(str).str.strip()
         df["state_code"] = location_clean.map(STATE_NAME_TO_CODE)
@@ -116,7 +145,7 @@ def add_model_ready_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_train_model_ready(df: pd.DataFrame) -> pd.DataFrame:
-    """Construye el dataframe oficial train_model_ready.csv usado por la app."""
+    """Construye el dataframe oficial train_model_ready.csv usado por la app y Dagster."""
     df = clean_streaming_churn_df(df)
     df = add_model_ready_features(df)
     return df
