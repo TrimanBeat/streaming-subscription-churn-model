@@ -374,7 +374,6 @@ comparison_long["model"] = pd.Categorical(
 )
 comparison_long = comparison_long.sort_values(["metric", "model"])
 
-st.markdown("#### Comparación global de modelos tuneados")
 fig_metrics = px.bar(
     comparison_long,
     x="metric",

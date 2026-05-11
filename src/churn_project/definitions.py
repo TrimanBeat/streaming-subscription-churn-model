@@ -5,7 +5,15 @@ from churn_project.dagster_assets import (
     train_model_ready,
     train_model_ready_csv,
     segment_summary_r_csv,
+    rf_retraining_outputs,
 )
+
 defs = Definitions(
-    assets=[raw_data, train_model_ready, train_model_ready_csv, segment_summary_r_csv]
+    assets=[
+        raw_data,
+        train_model_ready,
+        train_model_ready_csv,
+        segment_summary_r_csv,
+        rf_retraining_outputs,
+    ]
 )

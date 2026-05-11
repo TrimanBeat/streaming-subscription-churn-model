@@ -1,10 +1,5 @@
 from __future__ import annotations
 
-import joblib
-import pandas as pd
-import plotly.express as px
-import streamlit as st
-
 from pathlib import Path
 import sys
 
@@ -14,7 +9,12 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.append(str(SRC_DIR))
 
-from churn_project.data_loader import load_processed_data
+import joblib
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+
+from churn_project.data_loader import load_export_csv, load_processed_data
 from churn_project.simulation_utils import (
     add_simulation_record,
     build_manual_input,
@@ -28,7 +28,7 @@ from churn_project.summaries import metric_columns_for_display
 
 
 st.title("Simulación de clientes")
-st.caption("Simula nuevos clientes y estima su riesgo de churn con el modelo final del proyecto.")
+st.caption("Simula nuevos clientes, consulta el modelo final y explora el riesgo estimado de churn.")
 st.markdown("---")
 
 
@@ -37,8 +37,20 @@ def load_rf_model():
     return joblib.load("models/rf_tuned_model_compressed.joblib")
 
 
+@st.cache_data
+def load_rf_outputs():
+    rf_tuned_metrics = load_export_csv("data/exports/rf_tuned_metrics.csv")
+    rf_tuned_cm_pct = load_export_csv(
+        "data/exports/rf_tuned_confusion_matrix_percentage.csv",
+        index_col=0
+    )
+    rf_tuned_feature_importance = load_export_csv("data/exports/rf_tuned_feature_importance.csv")
+    return rf_tuned_metrics, rf_tuned_cm_pct, rf_tuned_feature_importance
+
+
 df = load_processed_data("data/processed/train_model_ready.csv")
 rf_model = load_rf_model()
+rf_tuned_metrics, rf_tuned_cm_pct, rf_tuned_feature_importance = load_rf_outputs()
 
 TARGET = "churned"
 
@@ -70,13 +82,30 @@ form_cols = [c for c in preferred_form_cols if c in feature_df.columns]
 if "simulated_customers" not in st.session_state:
     st.session_state["simulated_customers"] = pd.DataFrame()
 
-
 st.subheader("Nuevo cliente")
 
-tab_manual, tab_random = st.tabs(["Entrada manual", "Cliente aleatorio"])
+tab_random, tab_manual, tab_model = st.tabs(["Cliente aleatorio", "Entrada manual", "Modelo final RF"])
 
 latest_prediction = None
 latest_input_df = None
+
+with tab_random:
+    st.markdown("Pulsa el botón para simular un cliente aleatorio desde el dataset procesado.")
+    random_submit = st.button("Simular cliente aleatorio")
+
+    if random_submit:
+        try:
+            latest_input_df = get_random_customer(feature_df)
+            latest_prediction = predict_proba_single(rf_model, latest_input_df)
+            st.session_state["simulated_customers"] = add_simulation_record(
+                st.session_state["simulated_customers"],
+                "pool",
+                "Random Forest Tuned",
+                latest_input_df,
+                latest_prediction
+            )
+        except Exception as e:
+            st.error(f"No se pudo generar la predicción: {e}")
 
 with tab_manual:
     with st.form("manual_simulation_form"):
@@ -125,23 +154,77 @@ with tab_manual:
         except Exception as e:
             st.error(f"No se pudo generar la predicción: {e}")
 
-with tab_random:
-    st.markdown("Pulsa el botón para simular un cliente aleatorio desde el dataset procesado.")
-    random_submit = st.button("Simular cliente aleatorio")
+with tab_model:
+    st.markdown("#### Rendimiento del Random Forest final")
 
-    if random_submit:
-        try:
-            latest_input_df = get_random_customer(feature_df)
-            latest_prediction = predict_proba_single(rf_model, latest_input_df)
-            st.session_state["simulated_customers"] = add_simulation_record(
-                st.session_state["simulated_customers"],
-                "pool",
-                "Random Forest Tuned",
-                latest_input_df,
-                latest_prediction
+    model_metrics = rf_tuned_metrics.iloc[0]
+
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric("Accuracy", f"{model_metrics['accuracy']:.3f}")
+    with m2:
+        st.metric("Precision", f"{model_metrics['precision']:.3f}")
+    with m3:
+        st.metric("Recall", f"{model_metrics['recall']:.3f}")
+    with m4:
+        st.metric("ROC AUC", f"{model_metrics['roc_auc']:.3f}")
+
+    c1, c2 = st.columns([1, 1])
+
+    with c1:
+        st.markdown("#### Matriz de confusión (%)")
+        fig_cm = px.imshow(
+            rf_tuned_cm_pct,
+            text_auto=".2f",
+            aspect="auto",
+            color_continuous_scale="Reds"
+        )
+        fig_cm.update_traces(texttemplate="%{z:.2f}%")
+        fig_cm.update_layout(
+            title_text="",
+            xaxis_title="Clase predicha",
+            yaxis_title="Clase real"
+        )
+        st.plotly_chart(fig_cm, use_container_width=True)
+
+    with c2:
+        st.markdown("#### Variables más importantes")
+
+        top_features = rf_tuned_feature_importance.head(12).copy()
+        feature_col = "feature_clean" if "feature_clean" in top_features.columns else "feature"
+
+        if feature_col == "feature":
+            top_features["feature_clean"] = (
+                top_features["feature"]
+                .astype(str)
+                .str.replace("num__", "", regex=False)
+                .str.replace("cat__", "", regex=False)
+                .str.replace("_", " ", regex=False)
             )
-        except Exception as e:
-            st.error(f"No se pudo generar la predicción: {e}")
+            feature_col = "feature_clean"
+
+        top_features = top_features.sort_values("importance", ascending=True)
+
+        fig_imp = px.bar(
+            top_features,
+            x="importance",
+            y=feature_col,
+            orientation="h",
+            text="importance",
+            color_discrete_sequence=["#B42318"]
+        )
+        fig_imp.update_traces(texttemplate="%{text:.3f}", textposition="outside")
+        fig_imp.update_layout(
+            title_text="",
+            xaxis_title="Importancia",
+            yaxis_title="Variable"
+        )
+        st.plotly_chart(fig_imp, use_container_width=True)
+
+    st.info(
+        "Este es el modelo final que usa la simulación. "
+        "La idea es priorizar acciones sobre perfiles de riesgo medio y alto según el contexto de negocio."
+    )
 
 if latest_prediction is not None:
     st.subheader("Resultado de la simulación")
@@ -154,7 +237,7 @@ if latest_prediction is not None:
         st.metric("Probabilidad de churn", f"{latest_prediction:.2%}")
     with r2:
         st.markdown(
-            f"""
+            f'''
             <div style="
                 padding: 0.6rem 0.8rem;
                 border-radius: 0.6rem;
@@ -166,7 +249,7 @@ if latest_prediction is not None:
             ">
                 Riesgo {risk_label}
             </div>
-            """,
+            ''',
             unsafe_allow_html=True
         )
     with r3:
@@ -178,7 +261,7 @@ if latest_prediction is not None:
 sim_df = st.session_state["simulated_customers"].copy()
 
 if len(sim_df) == 0:
-    st.info("Todavía no hay simulaciones. Crea un cliente manual o usa el botón de cliente aleatorio.")
+    st.info("Todavía no hay simulaciones. Usa la pestaña de cliente aleatorio o la de entrada manual.")
     st.stop()
 
 st.subheader("Resumen acumulado")
@@ -186,13 +269,16 @@ st.subheader("Resumen acumulado")
 n_sim = len(sim_df)
 avg_risk = sim_df["p_churn"].mean()
 high_risk_pct = (sim_df["risk_level"] == "Alto").mean()
+medium_risk_pct = (sim_df["risk_level"] == "Medio").mean()
 
-k1, k2, k3 = st.columns(3)
+k1, k2, k3, k4 = st.columns(4)
 with k1:
     st.metric("Clientes simulados", f"{n_sim:,}")
 with k2:
     st.metric("Riesgo medio", f"{avg_risk:.2%}")
 with k3:
+    st.metric("% riesgo medio", f"{medium_risk_pct:.2%}")
+with k4:
     st.metric("% alto riesgo", f"{high_risk_pct:.2%}")
 
 st.subheader("Distribución por nivel de riesgo")

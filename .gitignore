@@ -6,3 +6,7 @@ __pycache__/
 .streamlit/secrets.toml
 models/rf_model.joblib
 models/rf_model_large.joblib
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata

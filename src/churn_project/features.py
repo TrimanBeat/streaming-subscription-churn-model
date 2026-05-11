@@ -85,7 +85,6 @@ def add_features_pandas(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def clean_streaming_churn_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Limpieza y variables derivadas base del proyecto."""
     df = df.copy()
 
     if "signup_date" in df.columns:
@@ -104,7 +103,6 @@ def clean_streaming_churn_df(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_model_ready_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Añade exactamente las variables derivadas que aparecen en train_model_ready.csv."""
     df = df.copy()
 
     if "location" in df.columns:
@@ -145,7 +143,6 @@ def add_model_ready_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_train_model_ready(df: pd.DataFrame) -> pd.DataFrame:
-    """Construye el dataframe oficial train_model_ready.csv usado por la app y Dagster."""
     df = clean_streaming_churn_df(df)
     df = add_model_ready_features(df)
     return df

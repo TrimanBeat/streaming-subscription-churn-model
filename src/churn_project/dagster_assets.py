@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 import dagster as dg
 import pandas as pd
-import subprocess
 
 from churn_project.features import build_train_model_ready
+from churn_project.rf_training_utils import export_rf_training_outputs, train_rf_final_model
 
 
 RAW_PATH = Path("data/raw/train.csv")
@@ -32,6 +33,7 @@ def train_model_ready_csv(train_model_ready: pd.DataFrame) -> str:
     train_model_ready.to_csv(PROCESSED_OUTPUT_PATH, index=False)
     return str(PROCESSED_OUTPUT_PATH)
 
+
 @dg.asset(deps=[train_model_ready_csv])
 def segment_summary_r_csv() -> str:
     """Genera un resumen por segmentos usando R."""
@@ -52,5 +54,15 @@ def segment_summary_r_csv() -> str:
 
     if result.returncode != 0:
         raise RuntimeError(f"Error al ejecutar el script de R:\n{result.stderr}")
-    
+
     return str(output_path)
+
+
+@dg.asset(deps=[train_model_ready_csv])
+def rf_retraining_outputs() -> dict:
+    """Reentrena el Random Forest final y actualiza los artefactos que consume la app."""
+    df = pd.read_csv(PROCESSED_OUTPUT_PATH)
+    bundle = train_rf_final_model(df, target="churned")
+    paths = export_rf_training_outputs(bundle)
+
+    return paths
