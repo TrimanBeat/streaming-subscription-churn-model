@@ -5,9 +5,8 @@ scikit-learn
 matplotlib
 plotly
 joblib
-tensorflow
-scikeras
-google-genai
-graphviz
+dask[dataframe]
 dagster
 dagster-webserver
+tensorflow
+google-genai
