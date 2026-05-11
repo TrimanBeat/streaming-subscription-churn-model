@@ -9,3 +9,5 @@ tensorflow
 scikeras
 google-genai
 graphviz
+dagster
+dagster-webserver

@@ -13,7 +13,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from churn_project.data_loader import load_data_with_dask
+from churn_project.data_loader import load_data_with_dask, load_export_csv
 from churn_project.eda_utils import get_numeric_plot_candidates
 
 st.subheader("EDA y Segmentos")
@@ -122,6 +122,7 @@ REGION_COORDS = {
 # Datos base
 # =========================================================
 df = load_data_with_dask().copy()
+segment_summary_r = load_export_csv("data/exports/segment_summary_r.csv").copy()
 
 if "location" in df.columns:
     df["state_code"] = df["location"].map(STATE_ABBREV)
@@ -449,6 +450,26 @@ with tab2:
             st.dataframe(nice_segments, use_container_width=True, hide_index=True)
     else:
         st.info("No están disponibles todas las columnas necesarias para la vista de segmentos.")
+
+st.markdown("#### Resumen por segmentos generado con R")
+st.caption(
+    "Esta tabla se genera a partir de train_model_ready.csv mediante un asset de Dagster "
+    "que ejecuta un script en R."
+)
+
+segment_filter = st.selectbox(
+    "Filtrar resumen R por tipo de suscripción",
+    ["Todos"] + sorted(segment_summary_r["subscription_type"].dropna().unique().tolist())
+)
+
+segment_summary_display = segment_summary_r.copy()
+
+if segment_filter != "Todos":
+    segment_summary_display = segment_summary_display[
+        segment_summary_display["subscription_type"] == segment_filter
+    ]
+
+st.dataframe(segment_summary_display, use_container_width=True, hide_index=True)
 
 # TAB 3: Geografía
 with tab3:
