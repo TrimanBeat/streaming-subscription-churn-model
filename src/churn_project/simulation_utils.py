@@ -6,9 +6,11 @@ import pandas as pd
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
-NEW_CUSTOMERS_FOR_TRAINING_PATH = ROOT_DIR / "data" / "new_data" / "new_customers_for_training.csv"
+
 INCOMING_CUSTOMERS_PATH = ROOT_DIR / "data" / "raw" / "incoming_customers.csv"
 INCOMING_PREDICTION_READY_PATH = ROOT_DIR / "data" / "processed" / "incoming_prediction_ready.csv"
+RETRAINING_POOL_PATH = ROOT_DIR / "data" / "processed" / "retraining_pool.csv"
+NEW_CUSTOMERS_FOR_TRAINING_PATH = ROOT_DIR / "data" / "new_data" / "new_customers_for_training.csv"
 
 
 def classify_risk(p: float) -> str:
@@ -93,21 +95,21 @@ def load_incoming_customers(path: Path | str = INCOMING_CUSTOMERS_PATH) -> pd.Da
     return pd.read_csv(path)
 
 
-def load_incoming_prediction_ready(path: Path | str = INCOMING_PREDICTION_READY_PATH) -> pd.DataFrame:
-    """Carga el dataset incoming ya preparado y alineado al esquema del train."""
+def load_retraining_pool(path: Path | str = RETRAINING_POOL_PATH) -> pd.DataFrame:
+    """Carga el pool etiquetado reservado para simular nuevos datos de entrenamiento."""
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"No se encontró el archivo: {path}")
     return pd.read_csv(path)
 
 
-def sample_incoming_prediction_ready(
+def sample_retraining_pool(
     n_customers: int,
-    path: Path | str = INCOMING_PREDICTION_READY_PATH,
+    path: Path | str = RETRAINING_POOL_PATH,
     random_state: int | None = None,
 ) -> pd.DataFrame:
-    """Toma una muestra aleatoria de incoming_prediction_ready.csv."""
-    df = load_incoming_prediction_ready(path)
+    """Toma una muestra aleatoria del retraining_pool.csv."""
+    df = load_retraining_pool(path)
 
     if len(df) == 0:
         return df.copy()
@@ -123,23 +125,46 @@ def save_training_batch(
     batch_df: pd.DataFrame,
     output_path: Path | str = NEW_CUSTOMERS_FOR_TRAINING_PATH,
 ) -> str:
-    """Guarda el lote seleccionado para reentrenamiento en new_customers_for_training.csv."""
+    """Guarda el lote seleccionado para reentrenamiento."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     batch_df.to_csv(output_path, index=False)
     return str(output_path)
 
 
-def generate_prediction_ready_batch_for_training(
+def load_new_customers_for_training(
+    path: Path | str = NEW_CUSTOMERS_FOR_TRAINING_PATH,
+) -> pd.DataFrame:
+    """Carga el lote actual pendiente de incorporar al pipeline."""
+    path = Path(path)
+    if path.exists():
+        try:
+            return pd.read_csv(path)
+        except pd.errors.EmptyDataError:
+            return pd.DataFrame()
+    return pd.DataFrame()
+
+
+def clear_new_customers_for_training(
+    path: Path | str = NEW_CUSTOMERS_FOR_TRAINING_PATH,
+) -> str:
+    """Vacía el archivo del lote actual para reentrenamiento."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame().to_csv(path, index=False)
+    return str(path)
+
+
+def generate_retraining_batch(
     n_customers: int,
-    incoming_path: Path | str = INCOMING_PREDICTION_READY_PATH,
+    pool_path: Path | str = RETRAINING_POOL_PATH,
     output_path: Path | str = NEW_CUSTOMERS_FOR_TRAINING_PATH,
     random_state: int | None = None,
 ) -> pd.DataFrame:
-    """Genera un lote aleatorio desde incoming_prediction_ready.csv y lo guarda para Dagster."""
-    batch_df = sample_incoming_prediction_ready(
+    """Genera un lote aleatorio desde retraining_pool.csv y lo guarda para Dagster."""
+    batch_df = sample_retraining_pool(
         n_customers=n_customers,
-        path=incoming_path,
+        path=pool_path,
         random_state=random_state,
     )
     save_training_batch(batch_df, output_path=output_path)

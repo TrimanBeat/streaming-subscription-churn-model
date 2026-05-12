@@ -19,10 +19,13 @@ from churn_project.simulation_utils import (
     add_simulation_record,
     build_manual_input,
     classify_risk,
+    clear_new_customers_for_training,
     filter_by_risk_level,
-    generate_prediction_ready_batch_for_training,
+    generate_retraining_batch,
     get_random_customer,
     load_incoming_customers,
+    load_new_customers_for_training,
+    load_retraining_pool,
     predict_proba_single,
     risk_color,
 )
@@ -231,20 +234,22 @@ with tab_model:
     )
 
 with tab_retraining:
-    st.markdown("#### Generar lote desde incoming_prediction_ready")
+    retraining_pool_df = load_retraining_pool()
+
+    st.markdown("#### Generar lote desde retraining_pool")
     st.caption(
-        "Esta pestaña toma una muestra aleatoria del pool de clientes entrantes ya preparados "
+        "Esta pestaña toma una muestra aleatoria del pool etiquetado reservado para simular nuevos datos de entrenamiento "
         "y la guarda en data/new_data/new_customers_for_training.csv para que Dagster la incorpore al reentrenamiento."
     )
 
-    total_incoming = len(incoming_df)
-    st.metric("Clientes disponibles en incoming_prediction_ready", f"{total_incoming:,}")
+    total_pool = len(retraining_pool_df)
+    st.metric("Clientes disponibles en retraining_pool", f"{total_pool:,}")
 
     batch_size = st.number_input(
         "Número de clientes para el lote de reentrenamiento",
         min_value=1,
-        max_value=max(1, total_incoming),
-        value=min(10, max(1, total_incoming)),
+        max_value=max(1, total_pool),
+        value=min(10, max(1, total_pool)),
         step=1,
     )
 
@@ -256,21 +261,62 @@ with tab_retraining:
         step=1,
     )
 
-    if st.button("Generar lote para reentrenamiento", key="generate_retraining_batch_btn"):
-        try:
-            batch_df = generate_prediction_ready_batch_for_training(
-                n_customers=int(batch_size),
-                random_state=int(batch_seed),
-            )
-            st.success("Lote generado en data/new_data/new_customers_for_training.csv")
-            st.dataframe(batch_df.head(20), use_container_width=True, hide_index=True)
-        except Exception as e:
-            st.error(f"No se pudo generar el lote: {e}")
+    btn_col1, btn_col2 = st.columns([1, 1])
+
+    with btn_col1:
+        if st.button("Generar lote para reentrenamiento", key="generate_retraining_batch_btn"):
+            try:
+                batch_df = generate_retraining_batch(
+                    n_customers=int(batch_size),
+                    random_state=int(batch_seed),
+                )
+                st.success("Lote generado en data/new_data/new_customers_for_training.csv")
+                st.dataframe(batch_df.head(20), use_container_width=True, hide_index=True)
+            except Exception as e:
+                st.error(f"No se pudo generar el lote: {e}")
+
+    with btn_col2:
+        if st.button("Vaciar lote actual", key="clear_retraining_batch_btn"):
+            try:
+                clear_new_customers_for_training()
+                st.warning("Se ha vaciado el archivo data/new_data/new_customers_for_training.csv")
+            except Exception as e:
+                st.error(f"No se pudo vaciar el lote: {e}")
+
+    current_batch_df = load_new_customers_for_training()
+    if len(current_batch_df) > 0:
+        st.markdown("#### Lote actual pendiente para Dagster")
+        preview_cols = metric_columns_for_display(
+            current_batch_df,
+            [
+                "subscription_type",
+                "customer_service_inquiries",
+                "weekly_hours",
+                "song_skip_rate",
+                "num_subscription_pauses",
+                "churned",
+            ],
+        )
+        st.dataframe(current_batch_df[preview_cols].head(20), use_container_width=True, hide_index=True)
+
+    st.markdown("#### Pool etiquetado reservado (referencia)")
+    preview_cols = metric_columns_for_display(
+        retraining_pool_df,
+        [
+            "subscription_type",
+            "customer_service_inquiries",
+            "weekly_hours",
+            "song_skip_rate",
+            "num_subscription_pauses",
+            "churned",
+        ],
+    )
+    st.dataframe(retraining_pool_df[preview_cols].head(20), use_container_width=True, hide_index=True)
 
     st.markdown("#### Pool raw de incoming (referencia)")
     try:
         incoming_raw_df = load_incoming_customers()
-        preview_cols = metric_columns_for_display(
+        incoming_cols = metric_columns_for_display(
             incoming_raw_df,
             [
                 "subscription_type",
@@ -281,7 +327,7 @@ with tab_retraining:
                 "churned",
             ],
         )
-        st.dataframe(incoming_raw_df[preview_cols].head(20), use_container_width=True, hide_index=True)
+        st.dataframe(incoming_raw_df[incoming_cols].head(20), use_container_width=True, hide_index=True)
     except Exception as e:
         st.info(f"No se pudo cargar incoming_customers.csv directamente: {e}")
 
