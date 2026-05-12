@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
 import numpy as np
 import pandas as pd
+
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+NEW_CUSTOMERS_FOR_TRAINING_PATH = ROOT_DIR / "data" / "new_data" / "new_customers_for_training.csv"
+INCOMING_CUSTOMERS_PATH = ROOT_DIR / "data" / "raw" / "incoming_customers.csv"
+INCOMING_PREDICTION_READY_PATH = ROOT_DIR / "data" / "processed" / "incoming_prediction_ready.csv"
 
 
 def classify_risk(p: float) -> str:
@@ -76,3 +83,64 @@ def add_simulation_record(
     record["risk_level"] = classify_risk(p_churn)
 
     return pd.concat([current_df, record], ignore_index=True)
+
+
+def load_incoming_customers(path: Path | str = INCOMING_CUSTOMERS_PATH) -> pd.DataFrame:
+    """Carga el pool raw de clientes entrantes."""
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"No se encontró el archivo: {path}")
+    return pd.read_csv(path)
+
+
+def load_incoming_prediction_ready(path: Path | str = INCOMING_PREDICTION_READY_PATH) -> pd.DataFrame:
+    """Carga el dataset incoming ya preparado y alineado al esquema del train."""
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"No se encontró el archivo: {path}")
+    return pd.read_csv(path)
+
+
+def sample_incoming_prediction_ready(
+    n_customers: int,
+    path: Path | str = INCOMING_PREDICTION_READY_PATH,
+    random_state: int | None = None,
+) -> pd.DataFrame:
+    """Toma una muestra aleatoria de incoming_prediction_ready.csv."""
+    df = load_incoming_prediction_ready(path)
+
+    if len(df) == 0:
+        return df.copy()
+
+    n_customers = min(int(n_customers), len(df))
+    if n_customers <= 0:
+        return df.iloc[0:0].copy()
+
+    return df.sample(n=n_customers, random_state=random_state).copy()
+
+
+def save_training_batch(
+    batch_df: pd.DataFrame,
+    output_path: Path | str = NEW_CUSTOMERS_FOR_TRAINING_PATH,
+) -> str:
+    """Guarda el lote seleccionado para reentrenamiento en new_customers_for_training.csv."""
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    batch_df.to_csv(output_path, index=False)
+    return str(output_path)
+
+
+def generate_prediction_ready_batch_for_training(
+    n_customers: int,
+    incoming_path: Path | str = INCOMING_PREDICTION_READY_PATH,
+    output_path: Path | str = NEW_CUSTOMERS_FOR_TRAINING_PATH,
+    random_state: int | None = None,
+) -> pd.DataFrame:
+    """Genera un lote aleatorio desde incoming_prediction_ready.csv y lo guarda para Dagster."""
+    batch_df = sample_incoming_prediction_ready(
+        n_customers=n_customers,
+        path=incoming_path,
+        random_state=random_state,
+    )
+    save_training_batch(batch_df, output_path=output_path)
+    return batch_df

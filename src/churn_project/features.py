@@ -52,7 +52,6 @@ STATE_TO_REGION = {
 
 
 def add_features_dask(ddf: dd.DataFrame) -> dd.DataFrame:
-    """Features sencillas para carga con Dask en la app."""
     cols = set(ddf.columns)
 
     if {"weekly_hours", "song_skip_rate"}.issubset(cols):
@@ -68,7 +67,6 @@ def add_features_dask(ddf: dd.DataFrame) -> dd.DataFrame:
 
 
 def add_features_pandas(df: pd.DataFrame) -> pd.DataFrame:
-    """Versión pandas de features sencillas reutilizables."""
     df = df.copy()
     cols = set(df.columns)
 
@@ -146,3 +144,50 @@ def build_train_model_ready(df: pd.DataFrame) -> pd.DataFrame:
     df = clean_streaming_churn_df(df)
     df = add_model_ready_features(df)
     return df
+
+def align_prediction_ready_to_training_schema(
+    incoming_df: pd.DataFrame,
+    training_df: pd.DataFrame,
+    target: str = "churned",
+) -> pd.DataFrame:
+    """
+    Alinea el dataframe incoming al esquema de train_model_ready.
+    Mantiene el mismo orden de columnas y fuerza tipos compatibles.
+    Conserva `churned` si está presente.
+    """
+    incoming_df = incoming_df.copy()
+    training_df = training_df.copy()
+
+    # Usar el esquema completo del train, incluyendo churned
+    train_cols = training_df.columns.tolist()
+
+    # Reindexar al mismo orden de columnas del train
+    aligned = incoming_df.reindex(columns=train_cols)
+
+    categorical_cols = [
+        col for col in [
+            "location",
+            "subscription_type",
+            "payment_plan",
+            "payment_method",
+            "customer_service_inquiries",
+            "age_group",
+            "weekly_hours_bin",
+            "skip_rate_bin",
+            "state_code",
+            "region",
+        ]
+        if col in aligned.columns
+    ]
+
+    for col in aligned.columns:
+        if col in categorical_cols:
+            aligned[col] = aligned[col].astype("object")
+        else:
+            aligned[col] = pd.to_numeric(aligned[col], errors="coerce")
+
+    # Si churned existe, mejor dejarlo entero
+    if target in aligned.columns:
+        aligned[target] = pd.to_numeric(aligned[target], errors="coerce").astype("Int64")
+
+    return aligned

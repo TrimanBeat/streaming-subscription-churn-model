@@ -1,0 +1,7 @@
+[32m2026-05-12 21:55:53 +0200[0m - dagster - [34mDEBUG[0m - __ASSET_JOB - ac7a49e7-ffc9-4fd9-a91b-ff8db3bd8b88 - 17026 - LOGS_CAPTURED - Capturing logs for process (pid: 17026).
+[32m2026-05-12 21:55:53 +0200[0m - dagster - [34mDEBUG[0m - __ASSET_JOB - ac7a49e7-ffc9-4fd9-a91b-ff8db3bd8b88 - 17026 - raw_incoming_data - STEP_START - Started execution of step "raw_incoming_data".
+[32m2026-05-12 21:55:53 +0200[0m - dagster - [34mDEBUG[0m - __ASSET_JOB - ac7a49e7-ffc9-4fd9-a91b-ff8db3bd8b88 - 17026 - raw_incoming_data - STEP_OUTPUT - Yielded output "result" of type "DataFrame". (Type check passed).
+[32m2026-05-12 21:55:53 +0200[0m - dagster - [34mDEBUG[0m - __ASSET_JOB - ac7a49e7-ffc9-4fd9-a91b-ff8db3bd8b88 - raw_incoming_data - Writing file at: /Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/.dagster/storage/raw_incoming_data using PickledObjectFilesystemIOManager...
+[32m2026-05-12 21:55:53 +0200[0m - dagster - [34mDEBUG[0m - __ASSET_JOB - ac7a49e7-ffc9-4fd9-a91b-ff8db3bd8b88 - 17026 - raw_incoming_data - ASSET_MATERIALIZATION - Materialized value raw_incoming_data.
+[32m2026-05-12 21:55:53 +0200[0m - dagster - [34mDEBUG[0m - __ASSET_JOB - ac7a49e7-ffc9-4fd9-a91b-ff8db3bd8b88 - 17026 - raw_incoming_data - HANDLED_OUTPUT - Handled output "result" using IO manager "io_manager"
+[32m2026-05-12 21:55:53 +0200[0m - dagster - [34mDEBUG[0m - __ASSET_JOB - ac7a49e7-ffc9-4fd9-a91b-ff8db3bd8b88 - 17026 - raw_incoming_data - STEP_SUCCESS - Finished execution of step "raw_incoming_data" in 336ms.

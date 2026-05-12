@@ -1,0 +1,45 @@
+[32m2026-05-12 21:58:10 +0200[0m - dagster - [34mDEBUG[0m - __ASSET_JOB - 1ff88c23-426a-4040-b04a-b81a3656e940 - 17215 - LOGS_CAPTURED - Capturing logs for process (pid: 17215).
+[32m2026-05-12 21:58:10 +0200[0m - dagster - [34mDEBUG[0m - __ASSET_JOB - 1ff88c23-426a-4040-b04a-b81a3656e940 - 17215 - rf_retraining_outputs - STEP_START - Started execution of step "rf_retraining_outputs".
+[32m2026-05-12 21:58:10 +0200[0m - dagster - [34mDEBUG[0m - __ASSET_JOB - 1ff88c23-426a-4040-b04a-b81a3656e940 - rf_retraining_outputs - Loading file from: /Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/.dagster/storage/combined_training_data using PickledObjectFilesystemIOManager...
+[32m2026-05-12 21:58:10 +0200[0m - dagster - [34mDEBUG[0m - __ASSET_JOB - 1ff88c23-426a-4040-b04a-b81a3656e940 - 17215 - rf_retraining_outputs - LOADED_INPUT - Loaded input "combined_training_data" using input manager "io_manager", from output "result" of step "combined_training_data"
+[32m2026-05-12 21:58:10 +0200[0m - dagster - [34mDEBUG[0m - __ASSET_JOB - 1ff88c23-426a-4040-b04a-b81a3656e940 - 17215 - rf_retraining_outputs - STEP_INPUT - Got input "combined_training_data" of type "DataFrame". (Type check passed).
+[32m2026-05-12 21:58:10 +0200[0m - dagster - [34mERROR[0m - [31m__ASSET_JOB - 1ff88c23-426a-4040-b04a-b81a3656e940 - 17215 - rf_retraining_outputs - STEP_FAILURE - Execution of step "rf_retraining_outputs" failed.
+
+dagster._core.errors.DagsterExecutionStepExecutionError: Error occurred while executing op "rf_retraining_outputs"::
+
+ValueError: Input y contains NaN.
+
+Stack Trace:
+  File "/Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/.venv/lib/python3.11/site-packages/dagster/_core/execution/plan/utils.py", line 57, in op_execution_error_boundary
+    yield
+  File "/Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/.venv/lib/python3.11/site-packages/dagster/_utils/__init__.py", line 394, in iterate_with_context
+    next_output = next(iterator)
+                  ^^^^^^^^^^^^^^
+  File "/Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/.venv/lib/python3.11/site-packages/dagster/_core/execution/plan/compute_generator.py", line 135, in _coerce_op_compute_fn_to_iterator
+    result = invoke_compute_fn(
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/.venv/lib/python3.11/site-packages/dagster/_core/execution/plan/compute_generator.py", line 115, in invoke_compute_fn
+    return fn(context, **args_to_pass) if context_arg_provided else fn(**args_to_pass)
+                                                                    ^^^^^^^^^^^^^^^^^^
+  File "/Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/src/churn_project/dagster_assets.py", line 131, in rf_retraining_outputs
+    bundle = train_rf_final_model(combined_training_data, target="churned")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/src/churn_project/rf_training_utils.py", line 89, in train_rf_final_model
+    X_train, X_valid, y_train, y_valid = train_test_split(
+                                         ^^^^^^^^^^^^^^^^^
+  File "/Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/.venv/lib/python3.11/site-packages/sklearn/utils/_param_validation.py", line 218, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/.venv/lib/python3.11/site-packages/sklearn/model_selection/_split.py", line 2945, in train_test_split
+    train, test = next(cv.split(X=arrays[0], y=stratify))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/.venv/lib/python3.11/site-packages/sklearn/model_selection/_split.py", line 2434, in split
+    y = check_array(y, input_name="y", ensure_2d=False, dtype=None)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/.venv/lib/python3.11/site-packages/sklearn/utils/validation.py", line 1074, in check_array
+    _assert_all_finite(
+  File "/Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/.venv/lib/python3.11/site-packages/sklearn/utils/validation.py", line 133, in _assert_all_finite
+    _assert_all_finite_element_wise(
+  File "/Users/MattTrivino 1/Documents/Data Science projects/streaming-subscription-churn-model/.venv/lib/python3.11/site-packages/sklearn/utils/validation.py", line 182, in _assert_all_finite_element_wise
+    raise ValueError(msg_err)
+[0m

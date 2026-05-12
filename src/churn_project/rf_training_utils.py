@@ -36,8 +36,25 @@ DEFAULT_RF_PARAMS: dict[str, Any] = {
 
 
 def build_rf_preprocessor(X: pd.DataFrame) -> ColumnTransformer:
-    numeric_features = X.select_dtypes(include=["int64", "float64", "int32", "float32"]).columns.tolist()
-    categorical_features = X.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+    categorical_candidates = [
+        "location",
+        "subscription_type",
+        "payment_plan",
+        "payment_method",
+        "customer_service_inquiries",
+        "age_group",
+        "weekly_hours_bin",
+        "skip_rate_bin",
+        "state_code",
+        "region",
+    ]
+
+    categorical_features = [col for col in categorical_candidates if col in X.columns]
+
+    numeric_features = [
+        col for col in X.columns
+        if col not in categorical_features
+    ]
 
     numeric_transformer = Pipeline(steps=[
         ("imputer", SimpleImputer(strategy="median"))
@@ -52,7 +69,6 @@ def build_rf_preprocessor(X: pd.DataFrame) -> ColumnTransformer:
         ("num", numeric_transformer, numeric_features),
         ("cat", categorical_transformer, categorical_features)
     ])
-
 
 def train_rf_final_model(
     df: pd.DataFrame,

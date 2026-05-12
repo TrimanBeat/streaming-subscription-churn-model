@@ -20,7 +20,9 @@ from churn_project.simulation_utils import (
     build_manual_input,
     classify_risk,
     filter_by_risk_level,
+    generate_prediction_ready_batch_for_training,
     get_random_customer,
+    load_incoming_customers,
     predict_proba_single,
     risk_color,
 )
@@ -28,7 +30,7 @@ from churn_project.summaries import metric_columns_for_display
 
 
 st.title("Simulación de clientes")
-st.caption("Simula nuevos clientes, consulta el modelo final y explora el riesgo estimado de churn.")
+st.caption("Simula nuevos clientes, consulta el modelo final y prepara lotes para reentrenamiento.")
 st.markdown("---")
 
 
@@ -48,14 +50,14 @@ def load_rf_outputs():
     return rf_tuned_metrics, rf_tuned_cm_pct, rf_tuned_feature_importance
 
 
-df = load_processed_data("data/processed/train_model_ready.csv")
+incoming_df = load_processed_data("data/processed/incoming_prediction_ready.csv")
 rf_model = load_rf_model()
 rf_tuned_metrics, rf_tuned_cm_pct, rf_tuned_feature_importance = load_rf_outputs()
 
 TARGET = "churned"
 
-drop_cols_if_present = [col for col in ["y_true", "y_pred", "p_churn"] if col in df.columns]
-available_df = df.drop(columns=drop_cols_if_present, errors="ignore").copy()
+drop_cols_if_present = [col for col in ["y_true", "y_pred", "p_churn"] if col in incoming_df.columns]
+available_df = incoming_df.drop(columns=drop_cols_if_present, errors="ignore").copy()
 
 if TARGET in available_df.columns:
     feature_df = available_df.drop(columns=[TARGET]).copy()
@@ -84,13 +86,15 @@ if "simulated_customers" not in st.session_state:
 
 st.subheader("Nuevo cliente")
 
-tab_random, tab_manual, tab_model = st.tabs(["Cliente aleatorio", "Entrada manual", "Modelo final RF"])
+tab_random, tab_manual, tab_model, tab_retraining = st.tabs(
+    ["Cliente aleatorio", "Entrada manual", "Modelo final RF", "Lote para reentrenamiento"]
+)
 
 latest_prediction = None
 latest_input_df = None
 
 with tab_random:
-    st.markdown("Pulsa el botón para simular un cliente aleatorio desde el dataset procesado.")
+    st.markdown("Pulsa el botón para simular un cliente aleatorio desde incoming_prediction_ready.csv.")
     random_submit = st.button("Simular cliente aleatorio")
 
     if random_submit:
@@ -99,7 +103,7 @@ with tab_random:
             latest_prediction = predict_proba_single(rf_model, latest_input_df)
             st.session_state["simulated_customers"] = add_simulation_record(
                 st.session_state["simulated_customers"],
-                "pool",
+                "incoming_pool",
                 "Random Forest Tuned",
                 latest_input_df,
                 latest_prediction
@@ -226,6 +230,61 @@ with tab_model:
         "La idea es priorizar acciones sobre perfiles de riesgo medio y alto según el contexto de negocio."
     )
 
+with tab_retraining:
+    st.markdown("#### Generar lote desde incoming_prediction_ready")
+    st.caption(
+        "Esta pestaña toma una muestra aleatoria del pool de clientes entrantes ya preparados "
+        "y la guarda en data/new_data/new_customers_for_training.csv para que Dagster la incorpore al reentrenamiento."
+    )
+
+    total_incoming = len(incoming_df)
+    st.metric("Clientes disponibles en incoming_prediction_ready", f"{total_incoming:,}")
+
+    batch_size = st.number_input(
+        "Número de clientes para el lote de reentrenamiento",
+        min_value=1,
+        max_value=max(1, total_incoming),
+        value=min(10, max(1, total_incoming)),
+        step=1,
+    )
+
+    batch_seed = st.number_input(
+        "Semilla aleatoria (opcional)",
+        min_value=0,
+        max_value=999999,
+        value=42,
+        step=1,
+    )
+
+    if st.button("Generar lote para reentrenamiento", key="generate_retraining_batch_btn"):
+        try:
+            batch_df = generate_prediction_ready_batch_for_training(
+                n_customers=int(batch_size),
+                random_state=int(batch_seed),
+            )
+            st.success("Lote generado en data/new_data/new_customers_for_training.csv")
+            st.dataframe(batch_df.head(20), use_container_width=True, hide_index=True)
+        except Exception as e:
+            st.error(f"No se pudo generar el lote: {e}")
+
+    st.markdown("#### Pool raw de incoming (referencia)")
+    try:
+        incoming_raw_df = load_incoming_customers()
+        preview_cols = metric_columns_for_display(
+            incoming_raw_df,
+            [
+                "subscription_type",
+                "customer_service_inquiries",
+                "weekly_hours",
+                "song_skip_rate",
+                "num_subscription_pauses",
+                "churned",
+            ],
+        )
+        st.dataframe(incoming_raw_df[preview_cols].head(20), use_container_width=True, hide_index=True)
+    except Exception as e:
+        st.info(f"No se pudo cargar incoming_customers.csv directamente: {e}")
+
 if latest_prediction is not None:
     st.subheader("Resultado de la simulación")
 
@@ -326,7 +385,7 @@ col_filter1, col_filter2 = st.columns(2)
 with col_filter1:
     source_filter = st.selectbox(
         "Filtrar por origen",
-        ["Todos", "Solo manual", "Solo pool"]
+        ["Todos", "Solo manual", "Solo incoming_pool"]
     )
 
 with col_filter2:
@@ -339,8 +398,8 @@ hist_df = sim_df.copy()
 
 if source_filter == "Solo manual":
     hist_df = hist_df[hist_df["source"] == "manual"]
-elif source_filter == "Solo pool":
-    hist_df = hist_df[hist_df["source"] == "pool"]
+elif source_filter == "Solo incoming_pool":
+    hist_df = hist_df[hist_df["source"] == "incoming_pool"]
 
 hist_df = filter_by_risk_level(hist_df, risk_filter)
 hist_df = hist_df.sort_values("p_churn", ascending=False)
