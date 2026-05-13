@@ -36,7 +36,7 @@ with c1:
 with c2:
     st.markdown("### Enfoque")
     st.write(
-        "El proyecto combina análisis exploratorio, feature engineering, comparación de modelos tuneados y despliegue en una app interactiva."
+        "El proyecto combina análisis exploratorio, feature engineering, comparación de modelos y despliegue en una app interactiva."
     )
 
 with c3:

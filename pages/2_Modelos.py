@@ -47,7 +47,7 @@ except ImportError:
 
 
 st.title("Modelos Predictivos")
-st.caption("Comparación de modelos tuneados, interpretación y análisis de riesgo.")
+st.caption("Comparación de modelos, interpretación y análisis de riesgo.")
 st.markdown("---")
 
 

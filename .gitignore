@@ -1,12 +1,38 @@
-.venv/
+# Python
 __pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+
+# Jupyter
 .ipynb_checkpoints/
+
+# macOS
 .DS_Store
-.env
+
+# Streamlit / local secrets
 .streamlit/secrets.toml
-models/rf_model.joblib
-models/rf_model_large.joblib
-.Rproj.user/
+
+# Dagster local state
+.dagster/
+
+# R / RStudio
 .Rhistory
 .RData
 .Ruserdata
+.Rproj.user/
+
+# Local editor / IDE
+.vscode/
+.idea/
+
+# Dev containers
+.devcontainer/
+
+# Temporary files
+*.log
+*.tmp
