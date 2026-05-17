@@ -15,6 +15,7 @@ import plotly.express as px
 import streamlit as st
 
 from churn_project.data_loader import load_export_csv, load_processed_data
+from churn_project.display_labels import prettify_columns, pretty_label
 from churn_project.simulation_utils import (
     add_simulation_record,
     build_manual_input,
@@ -124,13 +125,15 @@ with tab_manual:
             target_col = [col1, col2, col3][idx % 3]
 
             with target_col:
+                label = pretty_label(col)
+
                 if col in numeric_cols:
                     min_val = float(feature_df[col].min()) if feature_df[col].notna().any() else 0.0
                     max_val = float(feature_df[col].max()) if feature_df[col].notna().any() else 100.0
                     median_val = float(feature_df[col].median()) if feature_df[col].notna().any() else 0.0
 
                     form_values[col] = st.number_input(
-                        label=col,
+                        label=label,
                         min_value=min_val,
                         max_value=max_val,
                         value=median_val
@@ -140,7 +143,7 @@ with tab_manual:
                     options = sorted(options)
 
                     form_values[col] = st.selectbox(
-                        label=col,
+                        label=label,
                         options=options if options else ["Unknown"],
                         index=0
                     )
@@ -201,15 +204,10 @@ with tab_model:
         feature_col = "feature_clean" if "feature_clean" in top_features.columns else "feature"
 
         if feature_col == "feature":
-            top_features["feature_clean"] = (
-                top_features["feature"]
-                .astype(str)
-                .str.replace("num__", "", regex=False)
-                .str.replace("cat__", "", regex=False)
-                .str.replace("_", " ", regex=False)
-            )
+            top_features["feature_clean"] = top_features["feature"].astype(str)
             feature_col = "feature_clean"
 
+        top_features[feature_col] = top_features[feature_col].map(pretty_label)
         top_features = top_features.sort_values("importance", ascending=True)
 
         fig_imp = px.bar(
@@ -271,7 +269,7 @@ with tab_retraining:
                     random_state=int(batch_seed),
                 )
                 st.success("Lote generado en data/new_data/new_customers_for_training.csv")
-                st.dataframe(batch_df.head(20), use_container_width=True, hide_index=True)
+                st.dataframe(prettify_columns(batch_df.head(20)), use_container_width=True, hide_index=True)
             except Exception as e:
                 st.error(f"No se pudo generar el lote: {e}")
 
@@ -297,7 +295,7 @@ with tab_retraining:
                 "churned",
             ],
         )
-        st.dataframe(current_batch_df[preview_cols].head(20), use_container_width=True, hide_index=True)
+        st.dataframe(prettify_columns(current_batch_df[preview_cols].head(20)), use_container_width=True, hide_index=True)
 
     st.markdown("#### Pool etiquetado reservado (referencia)")
     preview_cols = metric_columns_for_display(
@@ -311,7 +309,7 @@ with tab_retraining:
             "churned",
         ],
     )
-    st.dataframe(retraining_pool_df[preview_cols].head(20), use_container_width=True, hide_index=True)
+    st.dataframe(prettify_columns(retraining_pool_df[preview_cols].head(20)), use_container_width=True, hide_index=True)
 
     st.markdown("#### Pool raw de incoming (referencia)")
     try:
@@ -327,7 +325,7 @@ with tab_retraining:
                 "churned",
             ],
         )
-        st.dataframe(incoming_raw_df[incoming_cols].head(20), use_container_width=True, hide_index=True)
+        st.dataframe(prettify_columns(incoming_raw_df[incoming_cols].head(20)), use_container_width=True, hide_index=True)
     except Exception as e:
         st.info(f"No se pudo cargar incoming_customers.csv directamente: {e}")
 
@@ -361,7 +359,7 @@ if latest_prediction is not None:
         st.metric("Modelo usado", "Random Forest Tuned")
 
     st.markdown("#### Cliente simulado")
-    st.dataframe(latest_input_df, use_container_width=True, hide_index=True)
+    st.dataframe(prettify_columns(latest_input_df), use_container_width=True, hide_index=True)
 
 sim_df = st.session_state["simulated_customers"].copy()
 
@@ -462,4 +460,4 @@ preferred_hist_cols = [
 ]
 
 hist_cols = metric_columns_for_display(hist_df, preferred_hist_cols)
-st.dataframe(hist_df[hist_cols], use_container_width=True, hide_index=True)
+st.dataframe(prettify_columns(hist_df[hist_cols]), use_container_width=True, hide_index=True)

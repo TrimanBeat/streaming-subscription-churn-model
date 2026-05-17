@@ -38,6 +38,7 @@ from churn_project.modeling_utils import (
     select_model_bundle,
 )
 from churn_project.summaries import metric_columns_for_display
+from churn_project.display_labels import prettify_columns, pretty_label
 
 try:
     from google import genai
@@ -359,10 +360,16 @@ def build_tree_figure(tree_model, feature_names, max_depth_display=3):
 st.subheader("Comparación global de modelos")
 
 comparison_long = tuned_model_comparison_long.copy()
+comparison_long["metric_display"] = comparison_long["metric"].map(pretty_label)
 metric_order = ["accuracy", "precision", "recall", "f1", "roc_auc"]
 comparison_long["metric"] = pd.Categorical(
     comparison_long["metric"],
     categories=metric_order,
+    ordered=True
+)
+comparison_long["metric_display"] = pd.Categorical(
+    comparison_long["metric_display"],
+    categories=[pretty_label(m) for m in metric_order],
     ordered=True
 )
 
@@ -376,7 +383,7 @@ comparison_long = comparison_long.sort_values(["metric", "model"])
 
 fig_metrics = px.bar(
     comparison_long,
-    x="metric",
+    x="metric_display",
     y="score",
     color="model",
     barmode="group",
@@ -454,7 +461,7 @@ with col_right:
         top_features = rf_tuned_feature_importance.head(15).copy()
         feature_col = "feature_clean" if "feature_clean" in top_features.columns else "feature"
         if feature_col == "feature":
-            top_features["feature_clean"] = clean_feature_names(top_features["feature"])
+            top_features["feature_clean"] = clean_feature_names(top_features["feature"]).map(pretty_label)
             feature_col = "feature_clean"
 
         top_features = top_features.sort_values("importance", ascending=True)
@@ -479,7 +486,7 @@ with col_right:
         coef_df = logreg_tuned_coefficients.copy()
         feature_col = "feature_clean" if "feature_clean" in coef_df.columns else "feature"
         if feature_col == "feature":
-            coef_df["feature_clean"] = clean_feature_names(coef_df["feature"])
+            coef_df["feature_clean"] = clean_feature_names(coef_df["feature"]).map(pretty_label)
             feature_col = "feature_clean"
 
         top_pos = coef_df.sort_values("coefficient", ascending=False).head(8)
@@ -509,7 +516,7 @@ with col_right:
 
         st.markdown("##### Arquitectura de la red")
         arch_df = build_dnn_architecture_table(dnn_config)
-        st.dataframe(arch_df, use_container_width=True, hide_index=True)
+        st.dataframe(prettify_columns(arch_df), use_container_width=True, hide_index=True)
 
         st.markdown("##### Mejores hiperparámetros")
         dnn_config_df = pd.DataFrame({
@@ -553,7 +560,7 @@ preferred_cols = [
 ]
 
 show_cols = metric_columns_for_display(risk_table, preferred_cols)
-st.dataframe(risk_table[show_cols].head(20), use_container_width=True)
+st.dataframe(prettify_columns(risk_table[show_cols].head(20)), use_container_width=True, hide_index=True)
 
 if selected_model == "Deep Neural Network":
     st.markdown("#### Distribución de probabilidades predichas - DNN")
@@ -565,7 +572,7 @@ if selected_model == "Deep Neural Network":
     )
     fig_dnn_probs.update_layout(
         title_text="",
-        xaxis_title="Probabilidad estimada de churn",
+        xaxis_title=pretty_label("p_churn"),
         yaxis_title="Número de clientes"
     )
     st.plotly_chart(fig_dnn_probs, use_container_width=True)
@@ -667,7 +674,7 @@ if st.session_state["tree_model_in_situ"] is not None:
     with viz_col2:
         st.markdown("#### Importancia de variables")
         tree_importance_df = st.session_state["tree_importance_in_situ"].head(10).copy()
-        tree_importance_df["feature_clean"] = clean_feature_names(tree_importance_df["feature"])
+        tree_importance_df["feature_clean"] = clean_feature_names(tree_importance_df["feature"]).map(pretty_label)
 
         fig_tree_imp = px.bar(
             tree_importance_df.sort_values("importance", ascending=True),
