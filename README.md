@@ -260,7 +260,25 @@ streamlit run main.py
 
 ## Cómo ejecutar Dagster en local
 
+### Opción recomendada (comando único)
+
 Desde la raíz del proyecto:
+
+```bash
+./run_dagster_clean.sh
+```
+
+Este script:
+
+- limpia estado local de Dagster (`.dagster/`)
+- limpia `__pycache__`
+- limpia caché de Streamlit (si está disponible)
+- configura `PYTHONPATH` y `DAGSTER_HOME`
+- lanza `dagster dev -m churn_project.definitions`
+
+### Opción manual (alternativa)
+
+Si prefieres lanzarlo sin script:
 
 ```bash
 export PYTHONPATH=$(pwd)/src
