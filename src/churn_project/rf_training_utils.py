@@ -79,7 +79,11 @@ def train_rf_final_model(
 ) -> dict[str, Any]:
     working = df.copy()
 
-    drop_cols = [col for col in ["y_true", "y_pred", "p_churn"] if col in working.columns]
+    drop_cols = [
+        col
+        for col in ["y_true", "y_pred", "p_churn", "customer_id"]
+        if col in working.columns
+    ]
     if drop_cols:
         working = working.drop(columns=drop_cols)
 

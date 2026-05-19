@@ -294,7 +294,11 @@ def train_decision_tree_in_situ(
     random_state: int = 42
 ):
     df = df.copy()
-    drop_cols = [col for col in ["y_true", "y_pred", "p_churn"] if col in df.columns]
+    drop_cols = [
+        col
+        for col in ["y_true", "y_pred", "p_churn", "customer_id"]
+        if col in df.columns
+    ]
     if drop_cols:
         df = df.drop(columns=drop_cols)
 
