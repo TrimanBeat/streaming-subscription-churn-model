@@ -1,90 +1,89 @@
 feature,importance,feature_clean
-num__weekly_hours,0.21083817492906143,weekly hours
-cat__subscription_type_Free,0.15033046286235485,subscription type Free
-cat__customer_service_inquiries_High,0.14418282893582585,customer service inquiries High
-num__age,0.08368164074939344,age
-num__num_subscription_pauses,0.07717694665489361,num subscription pauses
-num__song_skip_rate,0.07711733533513031,song skip rate
-cat__subscription_type_Student,0.05713389428925903,subscription type Student
-cat__customer_service_inquiries_Low,0.03429934499796427,customer service inquiries Low
-cat__customer_service_inquiries_Medium,0.025377288140219403,customer service inquiries Medium
-num__notifications_clicked,0.020914645533211935,notifications clicked
-num__weekly_unique_songs,0.013110530605004736,weekly unique songs
-num__average_session_length,0.009399346985100027,average session length
-num__num_platform_friends,0.009393722787464164,num platform friends
-num__customer_id,0.008677191388262707,customer id
-num__num_playlists_created,0.007991946127807762,num playlists created
-num__num_favorite_artists,0.006711044848065891,num favorite artists
-num__num_shared_playlists,0.006643706026223976,num shared playlists
-num__songs_per_hour,0.006480109063689048,songs per hour
-num__high_skip_user,0.006430032985499186,high skip user
-cat__age_group_35-49,0.006421347860543814,age group 35-49
-num__weekly_songs_played,0.005964852564896125,weekly songs played
-cat__weekly_hours_bin_40-50,0.0037549040132530877,weekly hours bin 40-50
-num__tenure_months,0.003104618355118596,tenure months
-num__tenure_days,0.003093024343312784,tenure days
-num__signup_date,0.0030923015797880184,signup date
-cat__age_group_50-64,0.001172054163389958,age group 50-64
-cat__weekly_hours_bin_5-10,0.0010432985489347592,weekly hours bin 5-10
-cat__payment_method_Debit Card,0.0007032370346651248,payment method Debit Card
-cat__payment_method_Credit Card,0.0006544953318949369,payment method Credit Card
-cat__weekly_hours_bin_0-5,0.000654254482040896,weekly hours bin 0-5
-cat__age_group_18-24,0.0006243233452201968,age group 18-24
-cat__region_South,0.0005843823799489677,region South
-cat__payment_method_Paypal,0.0005295796569643734,payment method Paypal
-cat__payment_method_Apple Pay,0.0004911280208770296,payment method Apple Pay
-cat__region_West,0.00048460643365651397,region West
-cat__region_Northeast,0.0004739177837106668,region Northeast
-cat__age_group_25-34,0.0004096813449638934,age group 25-34
-cat__region_Midwest,0.0003971745708609288,region Midwest
-cat__skip_rate_bin_0.2-0.4,0.00037097160344424764,skip rate bin 0.2-0.4
-cat__weekly_hours_bin_20-30,0.0002959435369616527,weekly hours bin 20-30
-cat__payment_plan_Monthly,0.0002724930505658808,payment plan Monthly
-cat__location_Virginia,0.00026671401057889907,location Virginia
-cat__location_California,0.0002664159386150547,location California
-cat__location_New York,0.0002581813872008658,location New York
-cat__skip_rate_bin_0.4-0.6,0.0002572047562763221,skip rate bin 0.4-0.6
-cat__state_code_VA,0.00025410975126789834,state code VA
-cat__location_Alabama,0.00025128494940227804,location Alabama
-cat__state_code_CA,0.0002507601965380724,state code CA
-cat__state_code_WA,0.00025073356267467107,state code WA
-cat__state_code_UT,0.0002501924316558869,state code UT
-cat__location_Washington,0.00024719976746251056,location Washington
-cat__state_code_NY,0.0002457310796996046,state code NY
-cat__payment_plan_Yearly,0.0002448484853521556,payment plan Yearly
-cat__state_code_FL,0.0002448119228048209,state code FL
-cat__location_Florida,0.0002334151588321039,location Florida
-cat__location_Utah,0.00023333220610127835,location Utah
-cat__location_West Virginia,0.0002280819938002332,location West Virginia
-cat__state_code_AL,0.00022775150585790485,state code AL
-cat__state_code_NE,0.00022751218632120735,state code NE
-cat__state_code_WV,0.00022243952173153485,state code WV
-cat__location_Nebraska,0.00022173569755046423,location Nebraska
-cat__state_code_GA,0.0002120885777550786,state code GA
-cat__state_code_ME,0.00021183737813085075,state code ME
-cat__location_Georgia,0.00020699754606875464,location Georgia
-cat__location_Maine,0.00020232440114429683,location Maine
-cat__state_code_ND,0.0002003383551435975,state code ND
-cat__location_North Dakota,0.000198151777587769,location North Dakota
-cat__state_code_SC,0.0001947206129719902,state code SC
-cat__location_Idaho,0.00019469649968980557,location Idaho
-cat__state_code_ID,0.0001946529558765214,state code ID
-cat__location_Montana,0.00019299604106012898,location Montana
-cat__age_group_65-79,0.0001914421707670154,age group 65-79
-cat__state_code_NJ,0.00019127188523366257,state code NJ
-cat__state_code_MT,0.0001806097368891369,state code MT
-cat__location_New Jersey,0.00018006352425738682,location New Jersey
-cat__subscription_type_Premium,0.00016909978065879466,subscription type Premium
-cat__location_South Carolina,0.0001690290828277506,location South Carolina
-cat__location_North Carolina,0.0001658443801931665,location North Carolina
-cat__location_Wisconsin,0.00016282795093810676,location Wisconsin
-cat__weekly_hours_bin_30-40,0.00016210348827090722,weekly hours bin 30-40
-cat__state_code_NC,0.00015978489759603754,state code NC
-cat__location_Vermont,0.00015942254034598648,location Vermont
-cat__subscription_type_Family,0.0001584763351477632,subscription type Family
-cat__state_code_WI,0.0001567870924928693,state code WI
-cat__state_code_VT,0.00015597520627395946,state code VT
-cat__skip_rate_bin_0.6-0.8,9.537633229142889e-05,skip rate bin 0.6-0.8
-cat__skip_rate_bin_0-0.2,7.758497620194023e-05,skip rate bin 0-0.2
-cat__weekly_hours_bin_10-20,6.979413641819619e-05,weekly hours bin 10-20
-cat__skip_rate_bin_0.8-1.0,2.0462578599343992e-05,skip rate bin 0.8-1.0
+num__weekly_hours,0.21153948780897136,weekly hours
+cat__subscription_type_Free,0.15056223329942162,subscription type Free
+cat__customer_service_inquiries_High,0.14458795533157653,customer service inquiries High
+num__age,0.08411464071889192,age
+num__song_skip_rate,0.07814874074445537,song skip rate
+num__num_subscription_pauses,0.07736623171880311,num subscription pauses
+cat__subscription_type_Student,0.057229878123113274,subscription type Student
+cat__customer_service_inquiries_Low,0.03465972128440638,customer service inquiries Low
+cat__customer_service_inquiries_Medium,0.024929680266587827,customer service inquiries Medium
+num__notifications_clicked,0.02149492229773757,notifications clicked
+num__weekly_unique_songs,0.013739714817586783,weekly unique songs
+num__num_platform_friends,0.009967694910728048,num platform friends
+num__average_session_length,0.009927727761186991,average session length
+num__num_playlists_created,0.00841160191299675,num playlists created
+num__num_shared_playlists,0.007091016997316337,num shared playlists
+num__num_favorite_artists,0.007046524094708704,num favorite artists
+num__songs_per_hour,0.006828527573567962,songs per hour
+cat__age_group_35-49,0.006479462901976006,age group 35-49
+num__weekly_songs_played,0.0062796835687625565,weekly songs played
+num__high_skip_user,0.006027927399090345,high skip user
+cat__weekly_hours_bin_40-50,0.004155441038069093,weekly hours bin 40-50
+num__signup_date,0.0033106029431937993,signup date
+num__tenure_months,0.0032694012435856915,tenure months
+num__tenure_days,0.0032558083002999496,tenure days
+cat__age_group_50-64,0.001183341313469598,age group 50-64
+cat__weekly_hours_bin_5-10,0.0010037313327962297,weekly hours bin 5-10
+cat__age_group_18-24,0.0007700821432187845,age group 18-24
+cat__payment_method_Debit Card,0.0007447209016993914,payment method Debit Card
+cat__payment_method_Credit Card,0.0006928895964392167,payment method Credit Card
+cat__region_South,0.000607033444304018,region South
+cat__payment_method_Paypal,0.0005529381341592955,payment method Paypal
+cat__weekly_hours_bin_0-5,0.0005250708494338023,weekly hours bin 0-5
+cat__region_West,0.0005222500659312506,region West
+cat__payment_method_Apple Pay,0.000522043940490009,payment method Apple Pay
+cat__region_Northeast,0.0005125415337665608,region Northeast
+cat__region_Midwest,0.00041675835687117143,region Midwest
+cat__skip_rate_bin_0.2-0.4,0.0004000816720722926,skip rate bin 0.2-0.4
+cat__age_group_25-34,0.00039867350614263567,age group 25-34
+cat__weekly_hours_bin_20-30,0.0003116698087501959,weekly hours bin 20-30
+cat__payment_plan_Monthly,0.0002875860284840439,payment plan Monthly
+cat__location_Virginia,0.0002867342428159545,location Virginia
+cat__skip_rate_bin_0.4-0.6,0.00028494784160942096,skip rate bin 0.4-0.6
+cat__location_California,0.00028245389916465544,location California
+cat__payment_plan_Yearly,0.00028070035432419574,payment plan Yearly
+cat__state_code_VA,0.0002739741657661485,state code VA
+cat__state_code_CA,0.0002676195103808498,state code CA
+cat__state_code_WA,0.00026513297341314946,state code WA
+cat__location_Utah,0.0002634874472665975,location Utah
+cat__state_code_FL,0.0002612717863152838,state code FL
+cat__location_Washington,0.0002607185269550063,location Washington
+cat__state_code_NY,0.0002602455600777973,state code NY
+cat__location_New York,0.0002586657360465341,location New York
+cat__location_Alabama,0.00025712734123982156,location Alabama
+cat__state_code_UT,0.0002546482415376922,state code UT
+cat__location_West Virginia,0.0002497668422904566,location West Virginia
+cat__location_Nebraska,0.00024935455649688115,location Nebraska
+cat__state_code_NE,0.00024275497487295152,state code NE
+cat__state_code_AL,0.00024269989816160867,state code AL
+cat__location_Florida,0.0002424736017832553,location Florida
+cat__state_code_WV,0.00023762350231035863,state code WV
+cat__location_Maine,0.00022981164135542917,location Maine
+cat__location_Georgia,0.00022912300242322042,location Georgia
+cat__state_code_GA,0.00021947416993926892,state code GA
+cat__state_code_ME,0.0002117817686201377,state code ME
+cat__state_code_ND,0.00021139107483233148,state code ND
+cat__location_Idaho,0.00021106756597914908,location Idaho
+cat__state_code_NJ,0.00020478334816184174,state code NJ
+cat__age_group_65-79,0.00020456400461828055,age group 65-79
+cat__state_code_ID,0.0002044815655838651,state code ID
+cat__location_South Carolina,0.00019668188541607304,location South Carolina
+cat__location_North Dakota,0.0001962133892129832,location North Dakota
+cat__location_Montana,0.00019384903797932192,location Montana
+cat__state_code_SC,0.00019301659922933532,state code SC
+cat__location_Vermont,0.00019225067470246193,location Vermont
+cat__location_New Jersey,0.00018921897743036392,location New Jersey
+cat__state_code_MT,0.00018908431863087335,state code MT
+cat__location_Wisconsin,0.00018106818305342078,location Wisconsin
+cat__subscription_type_Premium,0.00017845529203065598,subscription type Premium
+cat__location_North Carolina,0.00017825600723645564,location North Carolina
+cat__state_code_NC,0.00017650274084323142,state code NC
+cat__subscription_type_Family,0.00016994517587586093,subscription type Family
+cat__weekly_hours_bin_30-40,0.00016400221427784203,weekly hours bin 30-40
+cat__state_code_VT,0.00015745422502445262,state code VT
+cat__state_code_WI,0.00015349727861645605,state code WI
+cat__skip_rate_bin_0.6-0.8,9.451088602419477e-05,skip rate bin 0.6-0.8
+cat__skip_rate_bin_0-0.2,7.779783702537162e-05,skip rate bin 0-0.2
+cat__weekly_hours_bin_10-20,7.240965610493124e-05,weekly hours bin 10-20
+cat__skip_rate_bin_0.8-1.0,2.0866791881205533e-05,skip rate bin 0.8-1.0
